@@ -20,6 +20,29 @@ export interface BridgeAvatar {
   progress_pct: number;
 }
 
+export interface BridgeRuntimeModel {
+  model?: string;
+  name?: string;
+  status?: string;
+  family?: string;
+  provider?: string;
+  runtime?: string;
+  format?: string;
+  quantisation?: string;
+  parameter_size?: string;
+  disk_footprint?: string;
+  context?: number;
+  vram_estimate?: string | null;
+  license?: string;
+  provenance?: string;
+}
+
+export interface BridgeHealthMetrics {
+  status?: string;
+  tokens_per_second?: number;
+  first_token_s?: number;
+}
+
 export interface BridgeRuntime {
   timestamp: number;
   avatar?: BridgeAvatar;
@@ -27,14 +50,14 @@ export interface BridgeRuntime {
   queue_depth: number;
   queued_ids: string[];
   active_model: string;
-  models: { model?: string; name?: string; status?: string }[];
+  models: BridgeRuntimeModel[];
   workers: { worker?: string; worker_id?: string; state?: string }[];
   approvals_pending: unknown[];
   progress_pct: number;
   results: unknown[];
   evidence_refs: string[];
   resources: Record<string, unknown>;
-  health: string;
+  health: string | BridgeHealthMetrics;
   errors: string[];
 }
 
@@ -94,6 +117,9 @@ export async function fetchBridgeStatus(
     runtime: null,
     models: [],
     error: '',
+    agentBridgeVersion: '',
+    ideVersion: '',
+    versionCompatible: false,
   };
   try {
     const health = (await getJson(`${baseUrl}/health`, timeoutMs)) as {

@@ -14,6 +14,9 @@ function useBridgeStatus(): BridgeStatus {
     runtime: null,
     models: [],
     error: '',
+    agentBridgeVersion: '',
+    ideVersion: '',
+    versionCompatible: false,
   });
   useEffect(() => {
     let cancelled = false;

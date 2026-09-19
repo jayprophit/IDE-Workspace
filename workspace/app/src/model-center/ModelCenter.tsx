@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { fetchBridgeStatus, BRIDGE_DEFAULT_BASE, checkVersionCompatibility } from './bridge';
+import { fetchBridgeStatus, BRIDGE_DEFAULT_BASE, checkVersionCompatibility } from '../bridge';
 
 // Model information types (matching owner's specification)
 export interface ModelInfo {
@@ -75,6 +75,7 @@ export function ModelCenter({ baseUrl = BRIDGE_DEFAULT_BASE }: { baseUrl?: strin
         const runtime = status.runtime;
         if (runtime && runtime.models && runtime.models.length > 0) {
           const primary = runtime.models[0];
+          const metrics = typeof runtime.health === 'object' && runtime.health !== null ? runtime.health : {};
           const model: ModelInfo = {
             name: primary.name || 'unknown',
             family: primary.family || 'unknown',
@@ -99,9 +100,9 @@ export function ModelCenter({ baseUrl = BRIDGE_DEFAULT_BASE }: { baseUrl?: strin
               embedding: false,
             },
             benchmarks: {
-              tokens_sec: runtime.health?.tokens_per_second || 0,
-              latency_ms: runtime.health?.first_token_s * 1000 || 0,
-              first_token_ms: runtime.health?.first_token_s * 1000 || 0,
+              tokens_sec: metrics.tokens_per_second || 0,
+              latency_ms: (metrics.first_token_s || 0) * 1000,
+              first_token_ms: (metrics.first_token_s || 0) * 1000,
             },
             tool_ability: [],
             coding: true,

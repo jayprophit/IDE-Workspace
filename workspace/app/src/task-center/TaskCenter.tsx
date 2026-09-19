@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { fetchBridgeStatus } from './bridge';
+import { fetchBridgeStatus } from '../bridge';
 
 // Task status mapping (from task_dag.py TaskStatus enum)
 export enum TaskStatus {
@@ -188,16 +188,6 @@ export function TaskCenter({ baseUrl = 'http://127.0.0.1:8471' }: { baseUrl?: st
   );
 }
 
-/* Cancellation token for useEffect */
+/* Shared cancellation flag for the refresh effect above. */
 let cancelled = false;
 
-function useCancelledEffect(effect: () => void, deps: any[]) {
-  mountedRef.current = true;
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-      cancelled = true;
-    };
-    effect(deps);
-  });
-}
