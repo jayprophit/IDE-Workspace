@@ -1,0 +1,23 @@
+{
+  "session_id": "s-c2419014f2",
+  "task_id": "d1fd5b434b59",
+  "start_time": "2026-09-12T20:59:07",
+  "status": "FAILED",
+  "step": 4,
+  "mode": "build",
+  "approval": "AUTO_SAFE",
+  "workspace": "C:\\Users\\jpowe\\Desktop\\IDE-Workspace\\workspace",
+  "models": {
+    "planner": "hhao/qwen2.5-coder-tools:3b",
+    "coder": "hhao/qwen2.5-coder-tools:3b",
+    "reviewer": "hhao/qwen2.5-coder-tools:3b",
+    "general": "hhao/qwen2.5-coder-tools:3b"
+  },
+  "revision": 1,
+  "files_touched": [],
+  "tests_run": 0,
+  "errors": 2,
+  "prompt_profile": "coder_v1+p1",
+  "terminal": true,
+  "fallback_log": []
+}

@@ -1,0 +1,10 @@
+{
+  "label": "bridge-v06-s-02cf9ae342",
+  "created": "2026-09-12T20:25:17",
+  "files": {
+    "test.txt": {
+      "existed": true,
+      "backup": ".bridge\\checkpoints\\bridge-v06-s-02cf9ae342\\blobs\\test.txt"
+    }
+  }
+}

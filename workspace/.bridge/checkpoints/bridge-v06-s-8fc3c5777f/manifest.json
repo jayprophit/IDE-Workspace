@@ -1,0 +1,18 @@
+{
+  "label": "bridge-v06-s-8fc3c5777f",
+  "created": "2026-09-12T20:54:04",
+  "files": {
+    "src": {
+      "existed": true,
+      "backup": null
+    },
+    "build": {
+      "existed": false,
+      "backup": null
+    },
+    "src\\inventory.h": {
+      "existed": false,
+      "backup": null
+    }
+  }
+}
