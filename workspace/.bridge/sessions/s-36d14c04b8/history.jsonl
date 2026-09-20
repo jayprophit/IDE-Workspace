@@ -1,1 +1,0 @@
-{"step": 1, "requested_raw": "```json\n{\n  \"action\": \"write\",\n  \"path\": \"test.py\",\n  \"content\": \"def test_function():\n    assert 1 + 1 == 2\n\"\n}\n```", "validation_ok": false, "error": "no valid structured action found (expected one JSON object with 'action')", "kind": "MODEL_OUTPUT_ERROR", "executed": false, "result": null, "role": "coder"}
