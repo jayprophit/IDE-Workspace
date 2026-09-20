@@ -22,7 +22,7 @@ class BridgeService:
         self.config = config or BridgeConfig()
         self.proc: subprocess.Popen | None = None
 
-def start(
+    def start(
         self,
         approval: str = "",
         preset: str = "STANDARD",
@@ -54,6 +54,7 @@ def start(
         self.proc = subprocess.Popen(
             cmd, cwd=root, stdout=logf, stderr=subprocess.STDOUT
         )
+        logf.close()
         deadline = time.time() + timeout_s
         last_err = ""
         health_url = endpoint.rstrip("/") + "/health"
