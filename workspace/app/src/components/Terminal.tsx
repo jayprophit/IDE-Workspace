@@ -97,7 +97,7 @@ node_modules/`);
         break;
 
       case 'pwd':
-        addLine('output', 'C:\\Users\\jpowe\\Desktop\\IDE-Workspace\\workspace\\app');
+        addLine('output', 'C:\\Users\\jpowe\\Desktop\\Projects\\IDE-Workspace\\workspace\\app');
         break;
 
       case 'cat':
