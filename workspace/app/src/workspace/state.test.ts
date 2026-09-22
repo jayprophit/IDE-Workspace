@@ -37,10 +37,16 @@ describe('shared state contract', () => {
     const shared = createInitialSharedState('/ws', 'demo');
     expect(() => switchDepth(shared, 'vr' as 'chat')).toThrowError(/invalid interface depth/);
     expect(() => parseUiState('{broken')).toThrowError(/malformed/);
-    expect(() => parseUiState('{"version":2}')).toThrowError(/version/);
+    expect(() => parseUiState('{"version":3}')).toThrowError(/version/);
     expect(() => parseUiState('{"version":1,"depth":"vr","chat":{},"work":{}}')).toThrowError(/depth/);
+    // v1 payloads migrate with recovery (unknown panels reset to default).
+    expect(
+      parseUiState('{"version":1,"depth":"chat","chat":{"rightPanel":{"id":"nope"}},"work":{"rightPanels":[],"dock":{"selected":"terminal"}}}').chat
+        .rightPanel,
+    ).toBeNull();
+    // v2 strict path still fails loudly on unknown panels.
     expect(() =>
-      parseUiState('{"version":1,"depth":"chat","chat":{"rightPanel":{"id":"nope"}},"work":{"rightPanels":[],"dock":{"selected":"terminal"}}}'),
+      parseUiState('{"version":2,"depth":"chat","chat":{"rightPanel":{"id":"nope"}},"work":{"rightPanels":[],"dock":{"selected":"terminal"}}}'),
     ).toThrowError(/unknown chat panel/);
   });
   it('serializes and reloads layout state round-trip', () => {
@@ -105,5 +111,79 @@ describe('service states', () => {
     expect(shared.bridge.kind).toBe('disconnected');
     expect(shared.models.kind).toBe('empty');
     expect(shared.task).toBeNull();
+  });
+});
+
+describe('layout presets', () => {
+  it('chat prioritizes conversation, work prioritizes canvas', async () => {
+    const { CHAT_DEFAULT, WORK_DEFAULT } = await import('./state');
+    expect(CHAT_DEFAULT.bottomDockVisible).toBe(false);
+    expect(CHAT_DEFAULT.rightPanel).toBeNull();
+    expect(WORK_DEFAULT.rightPanels.map((p) => p.id)).toEqual(['agent']);
+    expect(WORK_DEFAULT.sidebar).toMatchObject({ width: null, focused: false, activeTabId: 'agent' });
+    expect(WORK_DEFAULT.dock).toMatchObject({ visible: false, selected: 'terminal', height: null });
+  });
+  it('project storage keys differ per workspace', async () => {
+    const { uiStorageKey } = await import('./state');
+    expect(uiStorageKey('workspace/app')).not.toBe(uiStorageKey('workspace/other'));
+    expect(uiStorageKey('workspace/app')).toContain('aetherius.ide.ui.v1:');
+    expect(uiStorageKey('').length).toBeGreaterThan(0);
+  });
+});
+
+describe('version migration and section recovery', () => {
+  it('migrates v1 payloads with defaults for new fields', async () => {
+    const { parseUiState } = await import('./state');
+    const v1 = JSON.stringify({
+      version: 1, depth: 'code',
+      chat: { selectedConversation: null, rightPanel: null, bottomDockVisible: false },
+      work: {
+        openTabs: [], selectedFile: '', rightPanels: [{ id: 'agent', collapsed: false, order: 0 }],
+        dock: { visible: true, selected: 'tests' },
+      },
+    });
+    const migrated = parseUiState(v1);
+    expect(migrated.version).toBe(2);
+    expect(migrated.work.sidebar).toMatchObject({ width: null, focused: false, activeTabId: 'agent' });
+    expect(migrated.work.dock.selected).toBe('tests');
+  });
+  it('recovers corrupt sections independently with warnings', async () => {
+    const { recoverUiState } = await import('./state');
+    const bad = JSON.stringify({
+      version: 2, depth: 'code',
+      chat: { selectedConversation: null, rightPanel: { id: 'teleport' }, bottomDockVisible: false },
+      work: {
+        openTabs: [], selectedFile: 'a.ts',
+        rightPanels: [{ id: 'agent', collapsed: false, order: 0 }],
+        sidebar: { width: 9999, focused: false, activeTabId: 'agent' },
+        dock: { visible: true, selected: 'terminal', height: null },
+      },
+    });
+    const { state, warnings, recovered } = recoverUiState(bad);
+    expect(recovered).toBe(true);
+    expect(state.chat.rightPanel).toBeNull();
+    expect(state.work.selectedFile).toBe('a.ts');
+    expect(state.work.sidebar.width).toBe(640);
+    expect(warnings.length).toBeGreaterThan(0);
+    const clean = recoverUiState(null);
+    expect(clean.recovered).toBe(false);
+    expect(clean.warnings).toEqual([]);
+  });
+  it('clamps sizes and validates dock height', async () => {
+    const { recoverUiState } = await import('./state');
+    const raw = JSON.stringify({
+      version: 2, depth: 'code',
+      chat: { selectedConversation: null, rightPanel: null, bottomDockVisible: false },
+      work: {
+        openTabs: [], selectedFile: '',
+        rightPanels: [{ id: 'agent', collapsed: false, order: 0 }],
+        sidebar: { width: 50, focused: true, activeTabId: 'agent' },
+        dock: { visible: true, selected: 'logs', height: 5 },
+      },
+    });
+    const { state } = recoverUiState(raw);
+    expect(state.work.sidebar.width).toBe(200);
+    expect(state.work.sidebar.focused).toBe(true);
+    expect(state.work.dock.height).toBeNull();
   });
 });

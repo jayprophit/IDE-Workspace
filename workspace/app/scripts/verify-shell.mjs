@@ -102,6 +102,32 @@ try {
     check(`${id} visible`, v.length > 0, v.slice(0, 60));
   }
 
+  // Layout system: right sidebar tabs, focus, dock tabs, reset.
+  await page.click(tid('sidebar-tab-inspector'));
+  check('sidebar inspector tab opens', (await text('sidebar-panel-inspector')).includes('Inspector'));
+  await page.click(tid('sidebar-tab-agent'));
+  check('sidebar agent tab restores', (await page.$(tid('status-task'))) !== null);
+  await page.click(tid('sidebar-focus'));
+  check('sidebar focus toggles', (await page.$eval(tid('right-sidebar'), (el) => el.getAttribute('data-focused'))) === 'true');
+  await page.click(tid('sidebar-focus'));
+  await page.click(tid('dock-toggle'));
+  check('bottom dock opens', (await page.$eval(tid('bottom-dock'), (el) => el.getAttribute('data-state'))) === 'visible');
+  await page.click(tid('dock-tab-problems'));
+  check('dock problems tab honest empty', (await text('dock-empty-problems')).includes('No problems'));
+  await page.click(tid('dock-tab-terminal'));
+  check('dock terminal tab restores', (await page.$(tid('terminal-panel'))) !== null);
+  check('no code/web/video dock tabs exist', (await page.$(tid('dock-tab-code'))) === null && (await page.$(tid('dock-tab-web'))) === null);
+  await page.screenshot({ path: 'verify-shell-work.png' });
+  await page.click(tid('mode-chat-btn'));
+  await page.screenshot({ path: 'verify-shell-chat.png' });
+  const genesisChat = await text('genesis-ref');
+  await page.click(tid('mode-code-btn'));
+  check('genesis ref identical across depths', (await text('genesis-ref')) === genesisChat);
+  await page.click(tid('settings-btn'));
+  await page.click(tid('layout-reset'));
+  check('layout reset hides dock', (await page.$eval(tid('bottom-dock'), (el) => el.getAttribute('data-state'))) === 'hidden');
+  await page.click(tid('settings-close'));
+
   // Tablet-width responsive foundation (sidebar collapses via media query)
   await page.setViewport({ width: 800, height: 1000 });
   await new Promise((r) => setTimeout(r, 400));

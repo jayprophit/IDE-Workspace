@@ -2,19 +2,25 @@ import { useEffect, useState } from 'react';
 import type { ThemeId, WorkspaceMode } from './types';
 import { fetchBridgeStatus, type BridgeStatus, bridgeBase, createTerminalSession, execTerminal, fetchTerminalSession, type TerminalEntryView, listWorkspace, readWorkspaceFile, writeWorkspaceFile, searchWorkspace, gitWorkspace, createWorkspaceEntry, deleteWorkspaceEntry, renameWorkspaceEntry, type WorkspaceEntry } from './bridge';
 import {
-  loadUiState,
   serializeUiState,
   createInitialChatLayout,
   createInitialWorkLayout,
+  recoverUiState,
+  uiStorageKey,
+  type DockTabId,
+  type RightPanelId,
   type UiStorage,
 } from './workspace/state';
+
+const PROJECT_ID = 'workspace/app';
 
 function browserUiStorage(): UiStorage | null {
   try {
     const ls = window.localStorage;
+    const key = uiStorageKey(PROJECT_ID);
     return {
-      load: () => ls.getItem('aetherius.ide.ui.v1'),
-      save: (raw: string) => ls.setItem('aetherius.ide.ui.v1', raw),
+      load: () => ls.getItem(key) ?? ls.getItem('aetherius.ide.ui.v1'),
+      save: (raw: string) => ls.setItem(key, raw),
     };
   } catch {
     return null;
@@ -75,58 +81,123 @@ const THEMES: { id: ThemeId; label: string }[] = [
   { id: 'amber', label: 'Amber' },
 ];
 
+const DOCK_TABS: DockTabId[] = ['terminal', 'problems', 'output', 'tests', 'logs', 'evidence', 'git'];
+
+const DOCK_EMPTY_TEXT: Record<Exclude<DockTabId, 'terminal'>, string> = {
+  problems: 'No problems reported.',
+  output: 'No output captured.',
+  tests: 'No test results.',
+  logs: 'No logs captured.',
+  evidence: 'No evidence recorded.',
+  git: 'Git activity unavailable.',
+};
+
 export default function App() {
-  // Depth + layout restore: corrupt persisted state falls back to defaults.
-  const [mode, setModeState] = useState<WorkspaceMode>(() => {
+  // Depth + layout restore: per-section recovery, corrupt parts fall back.
+  const restoredLayout = (() => {
     try {
-      return loadUiState(browserUiStorage())?.depth ?? 'code';
+      return recoverUiState(browserUiStorage()?.load() ?? null);
     } catch {
-      return 'code';
+      return null;
     }
-  });
+  })();
+  const [mode, setModeState] = useState<WorkspaceMode>(restoredLayout?.state.depth ?? 'code');
   const [aiOpen, setAiOpenState] = useState<boolean>(() => {
-    try {
-      const restored = loadUiState(browserUiStorage());
-      const agent = restored?.work.rightPanels.find((p) => p.id === 'agent');
-      return agent ? !agent.collapsed : true;
-    } catch {
-      return true;
-    }
+    const agent = restoredLayout?.state.work.rightPanels.find((p) => p.id === 'agent');
+    return agent ? !agent.collapsed : true;
   });
-  const [dockVisible, setDockVisibleState] = useState<boolean>(() => {
-    try {
-      return loadUiState(browserUiStorage())?.work.dock.visible ?? false;
-    } catch {
-      return false;
-    }
-  });
-  const persistUi = (depth: WorkspaceMode, agentOpen: boolean, dock: boolean) => {
+  const [dockVisible, setDockVisibleState] = useState<boolean>(
+    restoredLayout?.state.work.dock.visible ?? false,
+  );
+  const [dockTab, setDockTabState] = useState<DockTabId>(
+    restoredLayout?.state.work.dock.selected ?? 'terminal',
+  );
+  const [sidebarWidth, setSidebarWidthState] = useState<number | null>(
+    restoredLayout?.state.work.sidebar.width ?? null,
+  );
+  const [sidebarFocused, setSidebarFocused] = useState<boolean>(
+    restoredLayout?.state.work.sidebar.focused ?? false,
+  );
+  const [sidebarTab, setSidebarTab] = useState<RightPanelId>(
+    restoredLayout?.state.work.sidebar.activeTabId ?? 'agent',
+  );
+  const persistUi = (
+    depth: WorkspaceMode,
+    agentOpen: boolean,
+    dock: boolean,
+    tab: DockTabId,
+    width: number | null,
+    focused: boolean,
+    activeTab: RightPanelId,
+  ) => {
     try {
       const storage = browserUiStorage();
       if (!storage) return;
       const chat = createInitialChatLayout();
       const work = createInitialWorkLayout();
       work.rightPanels = [{ id: 'agent', collapsed: !agentOpen, order: 0 }];
-      work.dock = { visible: dock, selected: 'terminal' };
+      work.sidebar = { width, focused, activeTabId: activeTab };
+      work.dock = { visible: dock, selected: tab, height: null };
       storage.save(serializeUiState(depth, chat, work));
     } catch {
       // Persistence is best-effort; layout state must never break the shell.
     }
   };
+  const snapshotLayout = () => ({ mode, aiOpen, dockVisible, dockTab, sidebarWidth, sidebarFocused, sidebarTab });
   const setMode = (next: WorkspaceMode) => {
     setModeState(next);
-    persistUi(next, aiOpen, dockVisible);
+    const s = snapshotLayout();
+    persistUi(next, s.aiOpen, s.dockVisible, s.dockTab, s.sidebarWidth, s.sidebarFocused, s.sidebarTab);
   };
   const setAiOpen = (next: boolean | ((v: boolean) => boolean)) => {
     setAiOpenState((prev) => {
       const value = typeof next === 'function' ? (next as (v: boolean) => boolean)(prev) : next;
-      persistUi(mode, value, dockVisible);
+      const s = snapshotLayout();
+      persistUi(s.mode, value, s.dockVisible, s.dockTab, s.sidebarWidth, s.sidebarFocused, s.sidebarTab);
       return value;
     });
   };
   const setDockVisible = (next: boolean) => {
     setDockVisibleState(next);
-    persistUi(mode, aiOpen, next);
+    const s = snapshotLayout();
+    persistUi(s.mode, s.aiOpen, next, s.dockTab, s.sidebarWidth, s.sidebarFocused, s.sidebarTab);
+  };
+  const setDockTab = (next: DockTabId) => {
+    setDockTabState(next);
+    const s = snapshotLayout();
+    persistUi(s.mode, s.aiOpen, s.dockVisible, next, s.sidebarWidth, s.sidebarFocused, s.sidebarTab);
+  };
+  const setSidebarWidth = (next: number | null) => {
+    const clamped = next === null ? null : Math.min(640, Math.max(200, Math.round(next)));
+    setSidebarWidthState(clamped);
+    const s = snapshotLayout();
+    persistUi(s.mode, s.aiOpen, s.dockVisible, s.dockTab, clamped, s.sidebarFocused, s.sidebarTab);
+  };
+  const setSidebarFocus = (next: boolean) => {
+    setSidebarFocused(next);
+    const s = snapshotLayout();
+    persistUi(s.mode, s.aiOpen, s.dockVisible, s.dockTab, s.sidebarWidth, next, s.sidebarTab);
+  };
+  const selectSidebarTab = (next: RightPanelId) => {
+    setSidebarTab(next);
+    const s = snapshotLayout();
+    persistUi(s.mode, s.aiOpen, s.dockVisible, s.dockTab, s.sidebarWidth, s.sidebarFocused, next);
+  };
+  const resetLayout = () => {
+    try {
+      browserUiStorage()?.save(
+        serializeUiState('code', createInitialChatLayout(), createInitialWorkLayout()),
+      );
+    } catch {
+      // Best effort only.
+    }
+    setModeState('code');
+    setAiOpenState(true);
+    setDockVisibleState(false);
+    setDockTabState('terminal');
+    setSidebarWidthState(null);
+    setSidebarFocused(false);
+    setSidebarTab('agent');
   };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeId>('dark');
@@ -530,10 +601,26 @@ export default function App() {
                 {dockVisible ? 'Hide dock' : 'Show dock'}
               </button>
             </div>
-            <div data-testid="dock-tabs" style={{ display: dockVisible ? 'flex' : 'none', gap: 6, marginBottom: 6 }}>
-              <span className="pill">terminal</span>
+            <div data-testid="dock-tabs" role="tablist" aria-label="Bottom dock tabs" style={{ display: dockVisible ? 'flex' : 'none', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+              {DOCK_TABS.map((tab) => (
+                <button
+                  key={tab}
+                  role="tab"
+                  aria-selected={dockTab === tab}
+                  data-testid={`dock-tab-${tab}`}
+                  className={dockTab === tab ? 'active' : ''}
+                  onClick={() => setDockTab(tab)}
+                >
+                  {tab}
+                </button>
+              ))}
             </div>
-          <div className="card terminal-panel" data-testid="terminal-panel" style={{ display: dockVisible ? 'block' : 'none' }}>
+            {dockTab !== 'terminal' && (
+              <div data-testid={`dock-empty-${dockTab}`} style={{ color: 'var(--muted)', fontSize: 11, display: dockVisible ? 'block' : 'none' }}>
+                {DOCK_EMPTY_TEXT[dockTab]} Backend data not connected.
+              </div>
+            )}
+          <div className="card terminal-panel" data-testid="terminal-panel" style={{ display: dockVisible && dockTab === 'terminal' ? 'block' : 'none' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <strong>Terminal</strong>
               <span className="pill" data-testid="terminal-cwd">{termCwd || 'no session'}</span>
@@ -569,11 +656,13 @@ export default function App() {
         </section>
 
         <aside
-          className={`ai-panel ${aiOpen ? '' : 'collapsed'}`}
-          data-testid="ai-panel"
-          data-state={aiOpen ? 'expanded' : 'collapsed'}
-          aria-label="AI agent panel"
+          className={`ai-panel ${aiOpen ? '' : 'collapsed'}${sidebarFocused ? ' focused' : ''}`}
+          data-testid="right-sidebar"
+          data-focused={sidebarFocused ? 'true' : 'false'}
+          aria-label="Right contextual workspace"
+          style={sidebarWidth ? { width: sidebarWidth } : undefined}
         >
+        <div data-testid="ai-panel" data-state={aiOpen ? 'expanded' : 'collapsed'}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', width: '100%' }}>
               <div
                 className="avatar"
@@ -587,15 +676,60 @@ export default function App() {
             </div>
             <button
               className="btn"
+              data-testid="sidebar-focus"
+              onClick={() => setSidebarFocus(!sidebarFocused)}
+              aria-pressed={sidebarFocused}
+              title={sidebarFocused ? 'Restore sidebar' : 'Focus sidebar'}
+            >
+              {sidebarFocused ? 'Restore' : 'Focus'}
+            </button>
+            <button
+              className="btn"
               data-testid="ai-toggle"
               onClick={() => setAiOpen((v) => !v)}
               title={aiOpen ? 'Collapse AI panel' : 'Expand AI panel'}
             >
               {aiOpen ? '⟩' : '⟨'}
             </button>
+            </div>
+            <div className="collapse-only-hidden" style={{ display: 'flex', gap: 6, alignItems: 'center', width: '100%', marginTop: 8 }}>
+              <div role="tablist" aria-label="Right sidebar panels" style={{ display: 'flex', gap: 4 }}>
+                {(['agent', 'inspector'] as RightPanelId[]).map((tab) => (
+                  <button
+                    key={tab}
+                    role="tab"
+                    aria-selected={sidebarTab === tab}
+                    data-testid={`sidebar-tab-${tab}`}
+                    className={sidebarTab === tab ? 'active' : ''}
+                    onClick={() => selectSidebarTab(tab)}
+                  >
+                    {tab === 'agent' ? 'Agent' : 'Inspector'}
+                  </button>
+                ))}
+              </div>
+              <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+                Width
+                <input
+                  type="range"
+                  min={200}
+                  max={640}
+                  step={10}
+                  value={sidebarWidth ?? 320}
+                  data-testid="sidebar-width"
+                  aria-label="Right sidebar width"
+                  onChange={(e) => setSidebarWidth(Number(e.target.value))}
+                />
+              </label>
+            </div>
           </div>
 
-          <div className="collapse-only-hidden" style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+          <div
+            className="collapse-only-hidden"
+            data-testid="sidebar-panel-agent"
+            role="tabpanel"
+            aria-label="Agent panel"
+            style={{ display: sidebarTab === 'agent' ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
+          >
             <div className="card" style={{ padding: 10 }}>
               <div className="status-row"><span className="k">genesis</span><span className="v" data-testid="genesis-ref">{SHARED_GENESIS_REF}</span></div>
               <div className="status-row"><span className="k">active model</span><span className="v" data-testid="status-model">{status.model}</span></div>
@@ -634,6 +768,20 @@ export default function App() {
               </div>
             </div>
           </div>
+          <div
+            className="collapse-only-hidden"
+            data-testid="sidebar-panel-inspector"
+            role="tabpanel"
+            aria-label="Inspector panel"
+            style={{ display: sidebarTab === 'inspector' ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
+          >
+            <div className="card" style={{ padding: 10 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Inspector</div>
+              <div style={{ color: 'var(--muted)', fontSize: 11 }} data-testid="inspector-empty">
+                {openFile ? `Selected file: ${openFile}` : 'Nothing selected — inspector shows contextual details for the current selection.'}
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
 
@@ -661,7 +809,8 @@ export default function App() {
               </button>
             ))}
           </div>
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12, display: 'flex', gap: 6 }}>
+            <button className="btn" data-testid="layout-reset" onClick={() => resetLayout()}>Reset layout</button>
             <button className="btn" data-testid="settings-close" onClick={() => setSettingsOpen(false)}>Close</button>
           </div>
         </div>

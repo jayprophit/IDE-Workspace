@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -84,6 +84,52 @@ describe('chat/work parity', () => {
       expect(screen.getByTestId('chat-log').textContent).toContain('not connected'),
     );
     expect(mockedStatus.mock.calls.length).toBe(callsBefore);
+  });
+});
+
+describe('sidebar tabs and focus', () => {
+  it('switches agent/inspector tabs without touching canonical state', async () => {
+    const { user } = await renderOffline();
+    const taskBefore = screen.getByTestId('status-task').textContent;
+    await user.click(screen.getByTestId('sidebar-tab-inspector'));
+    expect(screen.getByTestId('sidebar-panel-inspector').textContent).toContain('Inspector');
+    expect(screen.getByTestId('status-task').textContent).toBe(taskBefore);
+    await user.click(screen.getByTestId('sidebar-tab-agent'));
+    expect(screen.getByTestId('status-task').textContent).toBeTruthy();
+  });
+  it('focus toggle and width control persist without bridge calls', async () => {
+    const { user } = await renderOffline();
+    const callsBefore = mockedStatus.mock.calls.length;
+    await user.click(screen.getByTestId('sidebar-focus'));
+    expect(screen.getByTestId('right-sidebar').getAttribute('data-focused')).toBe('true');
+    const width = screen.getByTestId('sidebar-width') as HTMLInputElement;
+    fireEvent.change(width, { target: { value: '400' } });
+    expect(screen.getByTestId('right-sidebar').getAttribute('style')).toContain('400');
+    await user.click(screen.getByTestId('sidebar-focus'));
+    expect(screen.getByTestId('right-sidebar').getAttribute('data-focused')).toBe('false');
+    expect(mockedStatus.mock.calls.length).toBe(callsBefore);
+  });
+});
+
+describe('dock tabs', () => {
+  it('selects runtime tabs with honest empty states, terminal keeps DOM', async () => {
+    const { user } = await renderOffline();
+    await user.click(screen.getByTestId('dock-toggle'));
+    await user.click(screen.getByTestId('dock-tab-problems'));
+    expect(screen.getByTestId('dock-empty-problems').textContent).toContain('No problems');
+    await user.click(screen.getByTestId('dock-tab-terminal'));
+    expect(screen.getByTestId('terminal-panel')).toBeTruthy();
+    expect(screen.queryByTestId('dock-tab-code')).toBeNull();
+    expect(screen.queryByTestId('dock-tab-web')).toBeNull();
+    expect(screen.queryByTestId('dock-tab-video')).toBeNull();
+  });
+  it('reset restores defaults without touching canonical state', async () => {
+    const { user } = await renderOffline();
+    await user.click(screen.getByTestId('dock-toggle'));
+    await user.click(screen.getByTestId('settings-btn'));
+    await user.click(screen.getByTestId('layout-reset'));
+    expect(screen.getByTestId('bottom-dock').getAttribute('data-state')).toBe('hidden');
+    expect(screen.getByTestId('status-task').textContent).toContain('no active task');
   });
 });
 

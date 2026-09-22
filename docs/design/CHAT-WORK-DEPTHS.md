@@ -38,3 +38,20 @@ file contents; progress shows em-dash without live data.
 Layout state, DOM flags, modes and query parameters grant nothing.
 Authority is backend policy only. Owner-kind principals must arrive from
 backend session state, never from UI state.
+
+## Layout system (P23 layout unit)
+
+One structural model serves both depths: header, left activity nav, main
+canvas, right contextual sidebar, bottom runtime dock. Chat defaults to
+conversation-first with dock hidden; Work defaults to canvas-first with the
+dock available; both are presets, not capability gates.
+
+- Right sidebar: registry-driven tabs (Agent, Inspector), collapsible,
+  focus/maximize with restore, width 200–640 persisted per project.
+- Bottom dock: runtime tabs only (terminal, problems, output, tests, logs,
+  evidence, git); Code/Web/Video never live there. Terminal DOM persists
+  across collapse; closing a view never terminates its runtime.
+- Layout state is schema-versioned (v2, migrates v1), per-project,
+  validated per section with safe fallback; reset restores defaults
+  without touching canonical task state.
+- View lifecycle is separate from execution lifecycle throughout.

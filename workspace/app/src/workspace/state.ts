@@ -75,12 +75,36 @@ export interface ChatLayoutState {
   bottomDockVisible: boolean;
 }
 
+export interface SidebarLayout {
+  /** Pixel width, null = automatic. Clamped 200..640 on load. */
+  width: number | null;
+  /** Focused/maximized sidebar; canvas yields space but keeps state. */
+  focused: boolean;
+  activeTabId: RightPanelId | null;
+}
+
 export interface WorkLayoutState {
   openTabs: string[];
   selectedFile: string;
   rightPanels: PanelState[];
-  dock: DockState;
+  sidebar: SidebarLayout;
+  dock: DockState & { height: number | null };
 }
+
+/** Depth defaults: chat prioritizes conversation, work prioritizes canvas. */
+export const CHAT_DEFAULT: ChatLayoutState = {
+  selectedConversation: null,
+  rightPanel: null,
+  bottomDockVisible: false,
+};
+
+export const WORK_DEFAULT: WorkLayoutState = {
+  openTabs: [],
+  selectedFile: '',
+  rightPanels: [{ id: 'agent', collapsed: false, order: 0 }],
+  sidebar: { width: null, focused: false, activeTabId: 'agent' },
+  dock: { visible: false, selected: 'terminal', height: null },
+};
 
 const PANEL_CATALOG: RightPanelId[] = [
   'agent', 'details', 'code', 'web', 'preview', 'video',
@@ -118,17 +142,21 @@ export function createInitialSharedState(projectRoot: string, projectName: strin
 }
 
 export function createInitialChatLayout(): ChatLayoutState {
-  return { selectedConversation: null, rightPanel: null, bottomDockVisible: false };
+  return JSON.parse(JSON.stringify(CHAT_DEFAULT)) as ChatLayoutState;
 }
 
 export function createInitialWorkLayout(): WorkLayoutState {
-  return {
-    openTabs: [],
-    selectedFile: '',
-    rightPanels: [{ id: 'agent', collapsed: false, order: 0 }],
-    dock: { visible: false, selected: 'terminal' },
-  };
+  return JSON.parse(JSON.stringify(WORK_DEFAULT)) as WorkLayoutState;
 }
+
+/** Storage key is per project root so layouts restore per workspace. */
+export function uiStorageKey(projectRoot: string): string {
+  const slug = projectRoot.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'default';
+  return `aetherius.ide.ui.v1:${slug.slice(0, 64)}`;
+}
+
+/** @deprecated Use uiStorageKey for per-project state. Kept for migration. */
+export const LEGACY_UI_STORAGE_KEY = 'aetherius.ide.ui.v1';
 
 export interface DepthSwitch {
   depth: InterfaceDepth;
@@ -209,15 +237,118 @@ export function setDockVisible(dock: DockState, visible: boolean): DockState {
 }
 
 export interface PersistedUiState {
-  version: 1;
+  version: 2;
   depth: InterfaceDepth;
   chat: ChatLayoutState;
   work: WorkLayoutState;
 }
 
 export function serializeUiState(depth: InterfaceDepth, chat: ChatLayoutState, work: WorkLayoutState): string {
-  const payload: PersistedUiState = { version: 1, depth, chat, work };
+  const payload: PersistedUiState = { version: 2, depth, chat, work };
   return JSON.stringify(payload);
+}
+
+function sanitizePanels(panels: unknown, warnings: string[], where: string): PanelState[] {
+  if (!Array.isArray(panels)) {
+    warnings.push(`${where}: panels not an array, using default`);
+    return [{ id: 'agent', collapsed: false, order: 0 }];
+  }
+  const seen = new Set<string>();
+  const out: PanelState[] = [];
+  for (const panel of panels) {
+    if (typeof panel !== 'object' || panel === null) {
+      warnings.push(`${where}: dropping malformed panel entry`);
+      continue;
+    }
+    const record = panel as Record<string, unknown>;
+    if (typeof record.id !== 'string' || !isRightPanelId(record.id)) {
+      warnings.push(`${where}: dropping unknown panel ${String((record as { id?: unknown }).id)}`);
+      continue;
+    }
+    if (seen.has(record.id)) {
+      warnings.push(`${where}: dropping duplicate panel ${record.id}`);
+      continue;
+    }
+    seen.add(record.id);
+    out.push({ id: record.id, collapsed: record.collapsed === true, order: out.length });
+  }
+  return out.length > 0 ? out : [{ id: 'agent', collapsed: false, order: 0 }];
+}
+
+function clampWidth(value: unknown, warnings: string[]): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    warnings.push('sidebar width invalid, using automatic');
+    return null;
+  }
+  return Math.min(640, Math.max(200, Math.round(value)));
+}
+
+function sanitizeWork(raw: unknown, warnings: string[]): WorkLayoutState {
+  const fallback = createInitialWorkLayout();
+  if (typeof raw !== 'object' || raw === null) {
+    warnings.push('work layout missing, using default');
+    return fallback;
+  }
+  const record = raw as Record<string, unknown>;
+  const dock = (record.dock ?? {}) as Record<string, unknown>;
+  const dockTab = typeof dock.selected === 'string' && isDockTabId(dock.selected) ? dock.selected : 'terminal';
+  if (dock.selected !== undefined && dockTab === 'terminal' && dock.selected !== 'terminal') {
+    warnings.push('work dock tab unknown, using terminal');
+  }
+  const sidebar = (record.sidebar ?? {}) as Record<string, unknown>;
+  return {
+    openTabs: Array.isArray(record.openTabs) ? record.openTabs.filter((t): t is string => typeof t === 'string') : [],
+    selectedFile: typeof record.selectedFile === 'string' ? record.selectedFile : '',
+    rightPanels: sanitizePanels(record.rightPanels, warnings, 'work'),
+    sidebar: {
+      width: clampWidth(sidebar.width, warnings),
+      focused: sidebar.focused === true,
+      activeTabId:
+        typeof sidebar.activeTabId === 'string' && isRightPanelId(sidebar.activeTabId)
+          ? sidebar.activeTabId
+          : 'agent',
+    },
+    dock: {
+      visible: dock.visible === true,
+      selected: dockTab,
+      height:
+        typeof dock.height === 'number' && Number.isFinite(dock.height) && dock.height >= 80 && dock.height <= 600
+          ? Math.round(dock.height)
+          : null,
+    },
+  };
+}
+
+function sanitizeChat(raw: unknown, warnings: string[]): ChatLayoutState {
+  const fallback = createInitialChatLayout();
+  if (typeof raw !== 'object' || raw === null) {
+    warnings.push('chat layout missing, using default');
+    return fallback;
+  }
+  const record = raw as Record<string, unknown>;
+  let rightPanel: PanelState | null = null;
+  if (record.rightPanel !== null && record.rightPanel !== undefined) {
+    const single = sanitizePanels([record.rightPanel], warnings, 'chat');
+    rightPanel = single[0].id === 'agent' && (record.rightPanel as { id?: unknown }).id !== 'agent' ? null : { ...single[0], order: 0 };
+    if (rightPanel === null) warnings.push('chat panel unknown, cleared');
+  }
+  return {
+    selectedConversation: typeof record.selectedConversation === 'string' ? record.selectedConversation : null,
+    rightPanel,
+    bottomDockVisible: record.bottomDockVisible === true,
+  };
+}
+
+function migrateV1ToV2(record: Record<string, unknown>, warnings: string[]): PersistedUiState {
+  warnings.push('migrated persisted UI state v1 to v2');
+  const depth = record.depth === 'chat' || record.depth === 'code' ? record.depth : 'code';
+  return {
+    version: 2,
+    depth,
+    chat: sanitizeChat(record.chat, warnings),
+    work: sanitizeWork(record.work, warnings),
+  };
 }
 
 /** Corrupt/foreign persisted state surfaces as an error, never silent defaults. */
@@ -232,10 +363,15 @@ export function parseUiState(raw: string): PersistedUiState {
     throw new Error('persisted UI state has wrong shape');
   }
   const record = parsed as Record<string, unknown>;
-  if (record.version !== 1) throw new Error('unsupported UI state version');
+  if (record.version !== 1 && record.version !== 2) throw new Error('unsupported UI state version');
   if (record.depth !== 'chat' && record.depth !== 'code') {
     throw new Error('persisted UI state has invalid depth');
   }
+  if (record.version === 1) {
+    return migrateV1ToV2(record, []);
+  }
+  // v2 strict path: unknown panels/sizes fail loudly here; recoverUiState
+  // below offers per-section recovery for runtime use.
   const chat = record.chat as ChatLayoutState;
   const work = record.work as WorkLayoutState;
   if (typeof chat !== 'object' || chat === null || typeof work !== 'object' || work === null) {
@@ -249,6 +385,51 @@ export function parseUiState(raw: string): PersistedUiState {
   }
   if (!isDockTabId(work.dock?.selected)) throw new Error('persisted UI state has unknown dock tab');
   return parsed as PersistedUiState;
+}
+
+/**
+ * Runtime recovery entry: never throws. Recovers each section
+ * independently, collects warnings, falls back to defaults per section.
+ */
+export function recoverUiState(raw: string | null): { state: PersistedUiState; warnings: string[]; recovered: boolean } {
+  const warnings: string[] = [];
+  const defaults = (): PersistedUiState => ({
+    version: 2,
+    depth: 'code',
+    chat: createInitialChatLayout(),
+    work: createInitialWorkLayout(),
+  });
+  if (!raw) return { state: defaults(), warnings, recovered: false };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    warnings.push('persisted UI state malformed, using defaults');
+    return { state: defaults(), warnings, recovered: true };
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    warnings.push('persisted UI state has wrong shape, using defaults');
+    return { state: defaults(), warnings, recovered: true };
+  }
+  const record = parsed as Record<string, unknown>;
+  if (record.version !== 1 && record.version !== 2) {
+    warnings.push(`unsupported UI state version ${String(record.version)}, using defaults`);
+    return { state: defaults(), warnings, recovered: true };
+  }
+  const depth = record.depth === 'chat' || record.depth === 'code' ? record.depth : 'code';
+  if (record.depth !== 'chat' && record.depth !== 'code') {
+    warnings.push('persisted depth invalid, using code');
+  }
+  return {
+    state: {
+      version: 2,
+      depth,
+      chat: sanitizeChat(record.chat, warnings),
+      work: sanitizeWork(record.work, warnings),
+    },
+    warnings,
+    recovered: warnings.length > 0,
+  };
 }
 
 export interface UiStorage {
