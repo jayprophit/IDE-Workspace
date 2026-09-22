@@ -1,0 +1,109 @@
+import { describe, expect, it } from 'vitest';
+import {
+  closePanel,
+  createInitialChatLayout,
+  createInitialSharedState,
+  createInitialWorkLayout,
+  loadUiState,
+  openPanel,
+  parseUiState,
+  reorderPanels,
+  selectDockTab,
+  serializeUiState,
+  setDockVisible,
+  setPrincipal,
+  setTask,
+  setWorkflowRun,
+  switchDepth,
+  togglePanel,
+} from './state';
+
+describe('shared state contract', () => {
+  it('carries one genesis/task/run identity across depths', () => {
+    const shared = setWorkflowRun(
+      setTask(createInitialSharedState('/ws', 'demo'), { taskId: 'T1', workflowRunId: 'W1' }),
+      'W1',
+    );
+    const chat = switchDepth(shared, 'chat');
+    const code = switchDepth(shared, 'code');
+    // Identical reference: no clone, no second task/run/identity.
+    expect(chat.shared).toBe(shared);
+    expect(code.shared).toBe(shared);
+    expect(chat.shared.task?.taskId).toBe('T1');
+    expect(code.shared.workflowRunId).toBe('W1');
+    expect(chat.shared.genesis.genesisId).toBe(code.shared.genesis.genesisId);
+  });
+  it('rejects invalid depths and corrupt persisted layouts', () => {
+    const shared = createInitialSharedState('/ws', 'demo');
+    expect(() => switchDepth(shared, 'vr' as 'chat')).toThrowError(/invalid interface depth/);
+    expect(() => parseUiState('{broken')).toThrowError(/malformed/);
+    expect(() => parseUiState('{"version":2}')).toThrowError(/version/);
+    expect(() => parseUiState('{"version":1,"depth":"vr","chat":{},"work":{}}')).toThrowError(/depth/);
+    expect(() =>
+      parseUiState('{"version":1,"depth":"chat","chat":{"rightPanel":{"id":"nope"}},"work":{"rightPanels":[],"dock":{"selected":"terminal"}}}'),
+    ).toThrowError(/unknown chat panel/);
+  });
+  it('serializes and reloads layout state round-trip', () => {
+    const raw = serializeUiState('code', createInitialChatLayout(), createInitialWorkLayout());
+    const back = parseUiState(raw);
+    expect(back.depth).toBe('code');
+    expect(back.work.dock.selected).toBe('terminal');
+    expect(loadUiState(null)).toBeNull();
+    expect(loadUiState({ load: () => null, save: () => {} })).toBeNull();
+    expect(loadUiState({ load: () => raw, save: () => {} })?.depth).toBe('code');
+  });
+  it('principal rules: genesis/worker allowed, owner escalations rejected', () => {
+    const shared = createInitialSharedState('/ws', 'demo');
+    expect(setPrincipal(shared, { kind: 'genesis', id: 'genesis-prime', onBehalfOf: 'owner-jp' }).principal?.id).toBe(
+      'genesis-prime',
+    );
+    expect(setPrincipal(shared, { kind: 'worker', id: 'worker-1' }).principal?.kind).toBe('worker');
+    expect(() => setPrincipal(shared, { kind: 'owner', id: 'owner-jp' })).toThrowError(/backend session/);
+    expect(() => setPrincipal(shared, { kind: 'admin' as 'genesis', id: 'x' })).toThrowError(/invalid principal kind/);
+    expect(setPrincipal(shared, null).principal).toBeNull();
+  });
+});
+
+describe('right sidebar registry', () => {
+  it('opens, collapses, reorders and closes known panels only', () => {
+    let panels = openPanel([], 'web');
+    panels = openPanel(panels, 'code');
+    expect(panels.map((p) => p.id)).toEqual(['web', 'code']);
+    panels = togglePanel(panels, 'web');
+    expect(panels.find((p) => p.id === 'web')?.collapsed).toBe(true);
+    panels = reorderPanels(panels, ['code', 'web']);
+    expect(panels.map((p) => p.id)).toEqual(['code', 'web']);
+    panels = closePanel(panels, 'web');
+    expect(panels.map((p) => p.id)).toEqual(['code']);
+    expect(() => openPanel(panels, 'teleport')).toThrowError(/unknown panel/);
+    expect(() => togglePanel(panels, 'video')).toThrowError(/not open/);
+    expect(() => reorderPanels(panels, ['code', 'web'])).toThrowError(/exactly/);
+  });
+  it('chat and work keep independent panel layouts over shared task', () => {
+    const chat = createInitialChatLayout();
+    const work = createInitialWorkLayout();
+    expect(chat.rightPanel).toBeNull();
+    expect(work.rightPanels.map((p) => p.id)).toEqual(['agent']);
+    expect(chat.bottomDockVisible).toBe(false);
+  });
+});
+
+describe('bottom dock', () => {
+  it('hosts runtime tabs, hides fully, rejects code/web/video placement', () => {
+    const dock = setDockVisible({ visible: false, selected: 'terminal' }, true);
+    expect(selectDockTab(dock, 'tests').selected).toBe('tests');
+    expect(setDockVisible(dock, false).visible).toBe(false);
+    expect(() => selectDockTab(dock, 'code')).toThrowError(/unknown dock tab/);
+    expect(() => selectDockTab(dock, 'web')).toThrowError(/unknown dock tab/);
+    expect(() => selectDockTab(dock, 'video')).toThrowError(/unknown dock tab/);
+  });
+});
+
+describe('service states', () => {
+  it('distinguishes unavailable, empty, unimplemented and denied', () => {
+    const shared = createInitialSharedState('/ws', 'demo');
+    expect(shared.bridge.kind).toBe('disconnected');
+    expect(shared.models.kind).toBe('empty');
+    expect(shared.task).toBeNull();
+  });
+});

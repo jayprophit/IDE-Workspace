@@ -1,6 +1,28 @@
 import { useEffect, useState } from 'react';
 import type { ThemeId, WorkspaceMode } from './types';
 import { fetchBridgeStatus, type BridgeStatus, bridgeBase, createTerminalSession, execTerminal, fetchTerminalSession, type TerminalEntryView, listWorkspace, readWorkspaceFile, writeWorkspaceFile, searchWorkspace, gitWorkspace, createWorkspaceEntry, deleteWorkspaceEntry, renameWorkspaceEntry, type WorkspaceEntry } from './bridge';
+import {
+  loadUiState,
+  serializeUiState,
+  createInitialChatLayout,
+  createInitialWorkLayout,
+  type UiStorage,
+} from './workspace/state';
+
+function browserUiStorage(): UiStorage | null {
+  try {
+    const ls = window.localStorage;
+    return {
+      load: () => ls.getItem('aetherius.ide.ui.v1'),
+      save: (raw: string) => ls.setItem('aetherius.ide.ui.v1', raw),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Shared canonical refs: one Genesis, one task source for BOTH depths. */
+const SHARED_GENESIS_REF = 'genesis-prime · local preview (unverified)';
 
 const BRIDGE_POLL_MS = 5000;
 const BRIDGE_INITIAL_RETRY_MS = 1000;
@@ -43,11 +65,8 @@ function useBridgeStatus(): BridgeStatus {
   return status;
 }
 
-const FILES: Record<string, string> = {
-  '/src/App.tsx': `// IDE_NAME_TBD — slice 1\n// Provenance: fresh file for vertical slice (layout concepts only\n// adapted from references/vibe-prototype App.tsx/Header.tsx).\nexport function workspace() {\n  return 'universal workspace ready';\n}\n`,
-  '/src/agent.ts': `// Future Agent Bridge client seam (not wired in slice 1).\nexport const AGENT_SEAM = 'DefaultAgent via Agent Bridge v0.8.1';\n`,
-  '/README.md': `# IDE_NAME_TBD slice 1\nShell-only vertical slice. No backend. Mock agent state.\n`,
-};
+const NO_FILE_TEXT = '// No file open — browse a workspace above to edit real files.\n// The editor never shows fabricated file contents.';
+const NO_TASK_TEXT = 'no active task';
 
 const THEMES: { id: ThemeId; label: string }[] = [
   { id: 'dark', label: 'Dark' },
@@ -57,13 +76,62 @@ const THEMES: { id: ThemeId; label: string }[] = [
 ];
 
 export default function App() {
-  const [mode, setMode] = useState<WorkspaceMode>('code');
-  const [aiOpen, setAiOpen] = useState(true);
+  // Depth + layout restore: corrupt persisted state falls back to defaults.
+  const [mode, setModeState] = useState<WorkspaceMode>(() => {
+    try {
+      return loadUiState(browserUiStorage())?.depth ?? 'code';
+    } catch {
+      return 'code';
+    }
+  });
+  const [aiOpen, setAiOpenState] = useState<boolean>(() => {
+    try {
+      const restored = loadUiState(browserUiStorage());
+      const agent = restored?.work.rightPanels.find((p) => p.id === 'agent');
+      return agent ? !agent.collapsed : true;
+    } catch {
+      return true;
+    }
+  });
+  const [dockVisible, setDockVisibleState] = useState<boolean>(() => {
+    try {
+      return loadUiState(browserUiStorage())?.work.dock.visible ?? false;
+    } catch {
+      return false;
+    }
+  });
+  const persistUi = (depth: WorkspaceMode, agentOpen: boolean, dock: boolean) => {
+    try {
+      const storage = browserUiStorage();
+      if (!storage) return;
+      const chat = createInitialChatLayout();
+      const work = createInitialWorkLayout();
+      work.rightPanels = [{ id: 'agent', collapsed: !agentOpen, order: 0 }];
+      work.dock = { visible: dock, selected: 'terminal' };
+      storage.save(serializeUiState(depth, chat, work));
+    } catch {
+      // Persistence is best-effort; layout state must never break the shell.
+    }
+  };
+  const setMode = (next: WorkspaceMode) => {
+    setModeState(next);
+    persistUi(next, aiOpen, dockVisible);
+  };
+  const setAiOpen = (next: boolean | ((v: boolean) => boolean)) => {
+    setAiOpenState((prev) => {
+      const value = typeof next === 'function' ? (next as (v: boolean) => boolean)(prev) : next;
+      persistUi(mode, value, dockVisible);
+      return value;
+    });
+  };
+  const setDockVisible = (next: boolean) => {
+    setDockVisibleState(next);
+    persistUi(mode, aiOpen, next);
+  };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeId>('dark');
-  const [activeFile, setActiveFile] = useState('/src/App.tsx');
   const [messages, setMessages] = useState<{ from: 'agent' | 'user'; text: string }[]>([
-    { from: 'agent' as const, text: 'Shell slice 1 ready. Agent Bridge wiring comes in the next milestone.' },
+    { from: 'agent' as const, text: 'Workspace shell ready. Backend execution runs only through Agent Bridge when connected.' },
   ]);
   const [draft, setDraft] = useState('');
 
@@ -72,11 +140,13 @@ export default function App() {
   const bridge = useBridgeStatus();
   const live = bridge.connected ? bridge.runtime : null;
   const firstTask = live?.tasks?.[0];
+  // One shared canonical task source for BOTH depths: identical pill text in
+  // Chat and Work. Honest fallbacks only — never fabricated live data.
   const status = {
-    model: live?.active_model || 'hhao/qwen2.5-coder-tools:3b (planned)',
-    agent: firstTask?.worker || 'DefaultAgent (planned)',
-    task: firstTask?.objective || firstTask?.task_id || 'slice-1 shell demo',
-    progress: firstTask?.progress_pct ?? live?.progress_pct ?? 38,
+    model: live?.active_model || 'no model connected',
+    agent: firstTask?.worker || 'no agent connected',
+    task: firstTask?.objective || firstTask?.task_id || NO_TASK_TEXT,
+    progress: firstTask?.progress_pct ?? live?.progress_pct ?? null,
     approval: (live && live.approvals_pending.length > 0 ? 'pending' : 'none') as 'none' | 'pending',
     verification: 'idle' as const,
   };
@@ -244,7 +314,7 @@ export default function App() {
     setMessages((m) => [...m, { from: 'user' as const, text }]);
     setDraft('');
     window.setTimeout(() => {
-      setMessages((m) => [...m, { from: 'agent' as const, text: `Noted: "${text}". Backend/agent execution is out of scope for slice 1.` }]);
+      setMessages((m) => [...m, { from: 'agent' as const, text: `Noted: "${text}". Backend execution is not connected in this build — the message was recorded locally only.` }]);
     }, 250);
   };
 
@@ -322,7 +392,7 @@ export default function App() {
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-                    placeholder="Type a message (mock)…"
+                    placeholder="Type a message…"
                     aria-label="Chat message"
                   />
                   <button className="btn primary" data-testid="chat-send" onClick={send}>Send</button>
@@ -422,10 +492,10 @@ export default function App() {
                   {gitInfo && <div data-testid="git-info">{gitInfo}</div>}
                 </div>
                 <div className="card code-view">
-                  <div data-testid="open-file">{openFile || activeFile}</div>
+                  <div data-testid="open-file">{openFile || 'no file open'}</div>
                   <textarea
                     data-testid="code-view"
-                    value={openFile ? editorText : FILES[activeFile]}
+                    value={openFile ? editorText : NO_FILE_TEXT}
                     onChange={(e) => { setEditorText(e.target.value); }}
                     readOnly={!openFile}
                     rows={18}
@@ -442,7 +512,28 @@ export default function App() {
               </div>
             )}
           </div>
-          <div className="card terminal-panel" data-testid="terminal-panel" style={{ marginTop: 10 }}>
+          <section
+            className="card bottom-dock"
+            data-testid="bottom-dock"
+            data-state={dockVisible ? 'visible' : 'hidden'}
+            aria-label="Bottom runtime dock"
+            style={{ marginTop: 10 }}
+          >
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+              <strong>Runtime dock</strong>
+              <button
+                className="btn"
+                data-testid="dock-toggle"
+                onClick={() => setDockVisible(!dockVisible)}
+                aria-expanded={dockVisible}
+              >
+                {dockVisible ? 'Hide dock' : 'Show dock'}
+              </button>
+            </div>
+            <div data-testid="dock-tabs" style={{ display: dockVisible ? 'flex' : 'none', gap: 6, marginBottom: 6 }}>
+              <span className="pill">terminal</span>
+            </div>
+          <div className="card terminal-panel" data-testid="terminal-panel" style={{ display: dockVisible ? 'block' : 'none' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <strong>Terminal</strong>
               <span className="pill" data-testid="terminal-cwd">{termCwd || 'no session'}</span>
@@ -474,6 +565,7 @@ export default function App() {
               <button className="btn" data-testid="terminal-send-agent" onClick={() => void termSend('agent')} disabled={termBusy || !termId}>Run as agent</button>
             </div>
           </div>
+          </section>
         </section>
 
         <aside
@@ -505,12 +597,13 @@ export default function App() {
 
           <div className="collapse-only-hidden" style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
             <div className="card" style={{ padding: 10 }}>
+              <div className="status-row"><span className="k">genesis</span><span className="v" data-testid="genesis-ref">{SHARED_GENESIS_REF}</span></div>
               <div className="status-row"><span className="k">active model</span><span className="v" data-testid="status-model">{status.model}</span></div>
               <div className="status-row"><span className="k">active agent</span><span className="v" data-testid="status-agent">{status.agent}</span></div>
               <div className="status-row"><span className="k">task</span><span className="v" data-testid="status-task">{status.task}</span></div>
             </div>
             <div className="card" style={{ padding: 10 }}>
-              <div className="status-row"><span className="k">progress</span><span className="v" data-testid="status-progress">{status.progress}%</span></div>
+              <div className="status-row"><span className="k">progress</span><span className="v" data-testid="status-progress">{status.progress === null ? '—' : `${status.progress}%`}</span></div>
               <div className="progress" data-testid="progress-bar"><div style={{ width: `${status.progress}%` }} /></div>
             </div>
             <div className="card" style={{ padding: 10 }} data-testid="models-panel">
@@ -547,7 +640,7 @@ export default function App() {
       <footer className="statusbar" data-testid="status-bar">
         <span data-testid="statusbar-model">model: {status.model}</span>
         <span data-testid="statusbar-agent">agent: {status.agent}</span>
-        <span data-testid="statusbar-task">task: {status.task} {status.progress}%</span>
+        <span data-testid="statusbar-task">task: {status.task} {status.progress === null ? '—' : `${status.progress}%`}</span>
         <span data-testid="statusbar-approval">approval: {status.approval}</span>
         <span data-testid="statusbar-verification">verification: {status.verification}</span>
       </footer>
