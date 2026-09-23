@@ -89,8 +89,13 @@ export interface WorkLayoutState {
   rightPanels: PanelState[];
   sidebar: SidebarLayout;
   dock: DockState & { height: number | null };
-  /** Active workspace preset id; 'default' means unmodified Work default. */
   activePresetId: string;
+  /**
+   * Panels currently hosted in detached secondary windows. A panel listed
+   * here is hidden in-shell but keeps its canonical state; on load with no
+   * live window, detached entries reattach in-shell (documented fallback).
+   */
+  detached: RightPanelId[];
 }
 
 export type MainSurfaceKind = 'editor' | 'documents' | 'canvas';
@@ -183,7 +188,31 @@ export const WORK_DEFAULT: WorkLayoutState = {
   sidebar: { width: null, focused: false, activeTabId: 'agent' },
   dock: { visible: false, selected: 'terminal', height: null },
   activePresetId: 'default',
+  detached: [],
 };
+
+/** Resolve detached entries against open panels; unknown ids are dropped. */
+export function resolveDetached(openPanels: RightPanelId[], detached: unknown, warnings: string[]): RightPanelId[] {
+  if (!Array.isArray(detached)) return [];
+  const open = new Set(openPanels);
+  const out: RightPanelId[] = [];
+  for (const entry of detached) {
+    if (typeof entry !== 'string' || !isRightPanelId(entry)) {
+      warnings.push(`dropping unknown detached panel ${String(entry)}`);
+      continue;
+    }
+    if (!open.has(entry)) {
+      warnings.push(`dropping detached panel not open: ${entry}`);
+      continue;
+    }
+    if (out.includes(entry)) {
+      warnings.push(`dropping duplicate detached panel ${entry}`);
+      continue;
+    }
+    out.push(entry);
+  }
+  return out;
+}
 
 const PANEL_CATALOG: RightPanelId[] = [
   'agent', 'details', 'code', 'web', 'preview', 'video',
@@ -404,11 +433,17 @@ function sanitizeWork(raw: unknown, warnings: string[]): WorkLayoutState {
   if (record.activePresetId !== undefined && presetId === 'default' && record.activePresetId !== 'default') {
     warnings.push('work preset unknown, using default');
   }
+  const panels = sanitizePanels(record.rightPanels, warnings, 'work');
   return {
     openTabs: Array.isArray(record.openTabs) ? record.openTabs.filter((t): t is string => typeof t === 'string') : [],
     selectedFile: typeof record.selectedFile === 'string' ? record.selectedFile : '',
     activePresetId: presetId,
-    rightPanels: sanitizePanels(record.rightPanels, warnings, 'work'),
+    rightPanels: panels,
+    detached: resolveDetached(
+      panels.map((p) => p.id),
+      record.detached,
+      warnings,
+    ),
     sidebar: {
       width: clampWidth(sidebar.width, warnings),
       focused: sidebar.focused === true,
@@ -492,6 +527,12 @@ export function parseUiState(raw: string): PersistedUiState {
     if (!isRightPanelId(panel.id)) throw new Error('persisted UI state has unknown work panel');
   }
   if (!isDockTabId(work.dock?.selected)) throw new Error('persisted UI state has unknown dock tab');
+  const detached = (work as { detached?: unknown }).detached;
+  if (detached !== undefined) {
+    if (!Array.isArray(detached) || detached.some((id) => typeof id !== 'string' || !isRightPanelId(id))) {
+      throw new Error('persisted UI state has invalid detached panels');
+    }
+  }
   return parsed as PersistedUiState;
 }
 

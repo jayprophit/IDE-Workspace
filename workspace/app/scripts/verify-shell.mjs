@@ -138,6 +138,30 @@ try {
   await page.screenshot({ path: 'verify-shell-preset.png' });
   await page.click(tid('settings-close'));
 
+  // Real detach: secondary window opens on the detach URL, reattach restores.
+  await page.click(tid('sidebar-detach'));
+  let popup = null;
+  try {
+    popup = await browser.waitForTarget(
+      (target) => target.url().includes('detach=agent'),
+      { timeout: 8000 },
+    );
+  } catch {
+    popup = null;
+  }
+  check('detach opens a real secondary window', popup !== null);
+  if (popup) {
+    const popupPage = await popup.page();
+    await popupPage.waitForSelector('[data-testid="detached-root"]', { timeout: 8000 });
+    const panel = await popupPage.$eval('[data-testid="detached-root"]', (el) => el.getAttribute('data-detached-panel'));
+    check('detached window shows the agent panel', panel === 'agent');
+    const genesis = await popupPage.$eval('[data-testid="detached-genesis"]', (el) => el.textContent);
+    check('detached window shares genesis reference', (genesis || '').includes('genesis-prime'));
+    await popupPage.screenshot({ path: 'verify-shell-detached.png' });
+    await popupPage.close();
+  }
+  await page.click(tid('reattach-agent'));
+  check('reattach restores in-shell panel', (await page.$(tid('reattach-agent'))) === null);
   // Tablet-width responsive foundation (sidebar collapses via media query)
   await page.setViewport({ width: 800, height: 1000 });
   await new Promise((r) => setTimeout(r, 400));

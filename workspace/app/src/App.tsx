@@ -15,6 +15,35 @@ import {
   type RightPanelId,
   type UiStorage,
 } from './workspace/state';
+import {
+  closeDetachedHandle,
+  openDetachedWindow,
+  parseDetachRequest,
+  type DetachedHandle,
+} from './workspace/detach';
+import DetachedView from './DetachedView';
+
+function browserWindowOpener(): {
+  open(url: string, target: string, features?: string): DetachedHandle | null;
+} {
+  return {
+    open: (url, target, features) => {
+      try {
+        const child = window.open(url, target, features);
+        if (!child) return null;
+        return {
+          get closed() {
+            return child.closed;
+          },
+          close: () => child.close(),
+          focus: () => child.focus(),
+        };
+      } catch {
+        return null;
+      }
+    },
+  };
+}
 
 const PROJECT_ID = 'workspace/app';
 
@@ -97,6 +126,14 @@ const DOCK_EMPTY_TEXT: Record<Exclude<DockTabId, 'terminal'>, string> = {
 };
 
 export default function App() {
+  // Detached secondary window: render the requested panel view instead of
+  // the full shell. Invalid ids fall back to the full shell.
+  if (typeof window !== 'undefined') {
+    const detachedPanel = parseDetachRequest(window.location.href);
+    if (detachedPanel) {
+      return <DetachedView panelId={detachedPanel} />;
+    }
+  }
   // Depth + layout restore: per-section recovery, corrupt parts fall back.
   const restoredLayout = (() => {
     try {
@@ -132,6 +169,18 @@ export default function App() {
   const [presetId, setPresetId] = useState<string>(
     restoredLayout?.state.work.activePresetId ?? 'default',
   );
+  // Detached secondary windows: panel ids hosted outside the shell. View-only
+  // bookkeeping — execution lifecycle is untouched by detaching. Handles live
+  // in a ref (never persisted); persisted detached entries reattach on load
+  // because closed windows cannot be resurrected across reloads.
+  const [detached, setDetachedState] = useState<RightPanelId[]>([]);
+  const detachedHandles = useRef(new Map<RightPanelId, { closed: boolean; close(): void; focus(): void }>());
+  useEffect(() => {
+    const handles = detachedHandles.current;
+    return () => {
+      handles.clear();
+    };
+  }, []);
   // Responsive viewport tracking: transient overlay state only — desktop
   // preferences (width, panels, dock) are never overwritten by narrow views.
   const [viewportWidth, setViewportWidth] = useState<number>(() =>
@@ -160,6 +209,7 @@ export default function App() {
     sidebarTab: RightPanelId;
     openPanels: RightPanelId[];
     presetId: string;
+    detached: RightPanelId[];
   }
   const persistSnapshot = (s: LayoutSnapshot) => {
     try {
@@ -176,6 +226,7 @@ export default function App() {
       work.sidebar = { width: s.sidebarWidth, focused: s.sidebarFocused, activeTabId: s.sidebarTab };
       work.dock = { visible: s.dockVisible, selected: s.dockTab, height: null };
       work.activePresetId = WORKSPACE_PRESETS[s.presetId] !== undefined ? s.presetId : 'default';
+      work.detached = s.detached.filter((id) => listed.includes(id));
       storage.save(serializeUiState(s.mode, chat, work));
     } catch {
       // Persistence is best-effort; layout state must never break the shell.
@@ -183,7 +234,7 @@ export default function App() {
   };
   const snapshotLayout = (): LayoutSnapshot => ({
     mode, aiOpen, dockVisible, dockTab, sidebarWidth, sidebarFocused, sidebarTab,
-    openPanels, presetId,
+    openPanels, presetId, detached,
   });
   const setMode = (next: WorkspaceMode) => {
     setModeState(next);
@@ -254,6 +305,36 @@ export default function App() {
     setSidebarTab('agent');
     setOpenPanels(['agent']);
     setPresetId('default');
+    for (const handle of detachedHandles.current.values()) {
+      try {
+        if (!handle.closed) handle.close();
+      } catch {
+        // Best effort: detached windows belong to the user session.
+      }
+    }
+    detachedHandles.current.clear();
+    setDetachedState([]);
+  };
+  const detachPanel = (id: RightPanelId) => {
+    const { handle, blocked } = openDetachedWindow(browserWindowOpener(), window.location.href, id);
+    if (blocked || !handle) return false;
+    detachedHandles.current.set(id, handle);
+    setDetachedState((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    if (sidebarTab === id) {
+      const fallback = openPanels.find((openId) => openId !== id) ?? 'agent';
+      setSidebarTab(fallback);
+    }
+    persistSnapshot({ ...snapshotLayout(), detached: [...detached, id] });
+    return true;
+  };
+  const reattachPanel = (id: RightPanelId) => {
+    closeDetachedHandle(detachedHandles.current.get(id) ?? null);
+    detachedHandles.current.delete(id);
+    setDetachedState((prev) => {
+      const next = prev.filter((openId) => openId !== id);
+      persistSnapshot({ ...snapshotLayout(), detached: next });
+      return next;
+    });
   };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeId>('dark');
@@ -772,19 +853,44 @@ export default function App() {
             </div>
             <div className="collapse-only-hidden" style={{ display: 'flex', gap: 6, alignItems: 'center', width: '100%', marginTop: 8 }}>
               <div role="tablist" aria-label="Right sidebar panels" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {openPanels.map((tab) => (
-                  <button
-                    key={tab}
-                    role="tab"
-                    aria-selected={sidebarTab === tab}
-                    data-testid={`sidebar-tab-${tab}`}
-                    className={sidebarTab === tab ? 'active' : ''}
-                    onClick={() => selectSidebarTab(tab)}
-                  >
-                    {tab === 'agent' ? 'Agent' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </button>
-                ))}
+                {openPanels
+                  .filter((tab) => !detached.includes(tab))
+                  .map((tab) => (
+                    <button
+                      key={tab}
+                      role="tab"
+                      aria-selected={sidebarTab === tab}
+                      data-testid={`sidebar-tab-${tab}`}
+                      className={sidebarTab === tab ? 'active' : ''}
+                      onClick={() => selectSidebarTab(tab)}
+                    >
+                      {tab === 'agent' ? 'Agent' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </button>
+                  ))}
+                <button
+                  className="btn"
+                  data-testid="sidebar-detach"
+                  title="Open active panel in a secondary window"
+                  onClick={() => detachPanel(sidebarTab)}
+                >
+                  Detach
+                </button>
               </div>
+              {detached.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }} data-testid="detached-list">
+                  {detached.map((id) => (
+                    <button
+                      key={id}
+                      className="btn"
+                      data-testid={`reattach-${id}`}
+                      title={`Reattach ${id} panel`}
+                      onClick={() => reattachPanel(id)}
+                    >
+                      Reattach {id}
+                    </button>
+                  ))}
+                </div>
+              )}
               <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
                 Width
                 <input
@@ -806,7 +912,7 @@ export default function App() {
             data-testid="sidebar-panel-agent"
             role="tabpanel"
             aria-label="Agent panel"
-            style={{ display: sidebarTab === 'agent' && openPanels.includes('agent') ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
+            style={{ display: sidebarTab === 'agent' && openPanels.includes('agent') && !detached.includes('agent') ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
           >
             <div className="card" style={{ padding: 10 }}>
               <div className="status-row"><span className="k">genesis</span><span className="v" data-testid="genesis-ref">{SHARED_GENESIS_REF}</span></div>
@@ -851,7 +957,7 @@ export default function App() {
             data-testid="sidebar-panel-inspector"
             role="tabpanel"
             aria-label="Inspector panel"
-            style={{ display: sidebarTab === 'inspector' && openPanels.includes('inspector') ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
+            style={{ display: sidebarTab === 'inspector' && openPanels.includes('inspector') && !detached.includes('inspector') ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
           >
             <div className="card" style={{ padding: 10 }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Inspector</div>
@@ -869,7 +975,7 @@ export default function App() {
                 data-testid={`sidebar-panel-${id}`}
                 role="tabpanel"
                 aria-label={`${id} panel`}
-                style={{ display: sidebarTab === id ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
+                style={{ display: sidebarTab === id && !detached.includes(id) ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
               >
                 <div className="card" style={{ padding: 10 }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>

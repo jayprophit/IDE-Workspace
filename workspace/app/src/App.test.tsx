@@ -169,6 +169,59 @@ describe('responsive overlay drawer', () => {
   });
 });
 
+describe('detach and reattach', () => {
+  const stubOpen = (impl: () => unknown) => {
+    Object.defineProperty(window, 'open', { value: impl, configurable: true, writable: true });
+  };
+  it('blocked popup keeps the panel in shell with zero bridge calls', async () => {
+    stubOpen(() => null);
+    const { user } = await renderOffline();
+    const callsBefore = mockedStatus.mock.calls.length;
+    await user.click(screen.getByTestId('sidebar-detach'));
+    expect(screen.queryByTestId('detached-list')).toBeNull();
+    expect(screen.getByTestId('sidebar-panel-agent')).toBeTruthy();
+    expect(mockedStatus.mock.calls.length).toBe(callsBefore);
+    stubOpen(() => { throw new Error('nope'); });
+  });
+  it('successful detach hides in-shell panel; reattach restores it', async () => {
+    const closed: boolean[] = [];
+    stubOpen(() => ({ get closed() { return closed[0] ?? false; }, close: () => {}, focus: () => {} }));
+    const { user } = await renderOffline();
+    const callsBefore = mockedStatus.mock.calls.length;
+    await user.click(screen.getByTestId('sidebar-detach'));
+    expect(screen.getByTestId('reattach-agent')).toBeTruthy();
+    expect(screen.getByTestId('sidebar-panel-agent').getAttribute('style')).toContain('none');
+    expect(screen.getByTestId('status-task').textContent).toContain('no active task');
+    await user.click(screen.getByTestId('reattach-agent'));
+    expect(screen.queryByTestId('reattach-agent')).toBeNull();
+    expect(mockedStatus.mock.calls.length).toBe(callsBefore);
+    stubOpen(() => null);
+  });
+  it('invalid detach parameter falls back to the full shell', async () => {
+    window.history.replaceState({}, '', '/?detach=evil-panel');
+    try {
+      await renderOffline();
+      expect(screen.getByTestId('shell-root')).toBeTruthy();
+      expect(screen.queryByTestId('detached-root')).toBeNull();
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+  });
+  it('valid detach parameter renders the standalone view on shared backend', async () => {
+    window.history.replaceState({}, '', '/?detach=inspector');
+    try {
+      render(<App />);
+      await waitFor(() => expect(screen.getByTestId('detached-root')).toBeTruthy());
+      expect(screen.getByTestId('detached-root').getAttribute('data-detached-panel')).toBe('inspector');
+      expect(screen.getByTestId('detached-genesis').textContent).toContain('genesis-prime');
+      expect(screen.getByTestId('detached-note').textContent).toContain('Closing this window changes nothing');
+      expect(screen.queryByTestId('shell-root')).toBeNull();
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+  });
+});
+
 describe('dock tabs', () => {
   it('selects runtime tabs with honest empty states, terminal keeps DOM', async () => {
     const { user } = await renderOffline();

@@ -39,6 +39,18 @@ Layout state, DOM flags, modes and query parameters grant nothing.
 Authority is backend policy only. Owner-kind principals must arrive from
 backend session state, never from UI state.
 
+## Detached secondary windows
+
+Panels detach into real secondary browser windows (`?detach=<panel>`),
+never CSS overlays masquerading as multi-window. The detached view reads
+the same canonical backends (bridge status, persisted layout) and shares
+Genesis/task identity; it creates no sessions, tasks, runs or approvals
+and carries no principal or grant. Closing a detached view changes
+nothing; reattach restores the in-shell panel. Blocked popups fall back to
+in-shell presentation; invalid ids fall back to the full shell. Detached
+entries persist per project but reattach on load since closed windows
+cannot be resurrected.
+
 ## Specialist presets (P23 remainder slice)
 
 Presets are declarative arrangements over the same shell: `WORKSPACE_PRESETS`
