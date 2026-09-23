@@ -105,6 +105,8 @@ try {
   // Layout system: right sidebar tabs, focus, dock tabs, reset.
   await page.click(tid('sidebar-tab-inspector'));
   check('sidebar inspector tab opens', (await text('sidebar-panel-inspector')).includes('Inspector'));
+  check('inspector runtime section honest offline', (await text('inspector-runtime')).includes('Bridge disconnected'));
+  check('inspector sessions need connection', (await page.$(tid('inspector-sessions-refresh'))) === null);
   await page.click(tid('sidebar-tab-agent'));
   check('sidebar agent tab restores', (await page.$(tid('status-task'))) !== null);
   await page.click(tid('sidebar-focus'));

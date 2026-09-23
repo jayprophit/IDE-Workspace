@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ThemeId, WorkspaceMode } from './types';
 import { fetchBridgeStatus, type BridgeStatus, bridgeBase, createTerminalSession, execTerminal, fetchTerminalSession, type TerminalEntryView, listWorkspace, readWorkspaceFile, writeWorkspaceFile, searchWorkspace, gitWorkspace, createWorkspaceEntry, deleteWorkspaceEntry, renameWorkspaceEntry, type WorkspaceEntry } from './bridge';
+import { fetchInspectionEvents, fetchInspectionSessions, type InspectionEvent, type InspectionSession } from './inspection';
 import {
   serializeUiState,
   createInitialChatLayout,
@@ -387,6 +388,56 @@ export default function App() {
   const [newEntryName, setNewEntryName] = useState('');
   const [newEntryIsDir, setNewEntryIsDir] = useState(false);
   const [showNewEntry, setShowNewEntry] = useState(false);
+
+  // Runtime inspection: real bridge state only (workers/approvals from the
+  // live payload; sessions/events fetched explicitly, never polled, never
+  // fabricated). Manual refresh keeps bridge-call counts deterministic.
+  const [inspectSessions, setInspectSessions] = useState<InspectionSession[]>([]);
+  const [inspectSessionsError, setInspectSessionsError] = useState('');
+  const [inspectLoading, setInspectLoading] = useState(false);
+  const [selectedInspectSession, setSelectedInspectSession] = useState('');
+  const [inspectEvents, setInspectEvents] = useState<InspectionEvent[]>([]);
+  const [inspectEventsError, setInspectEventsError] = useState('');
+  const [inspectEventsLoading, setInspectEventsLoading] = useState(false);
+  const refreshInspection = async () => {
+    setInspectSessionsError('');
+    setInspectEventsError('');
+    setInspectEvents([]);
+    setSelectedInspectSession('');
+    if (!bridge.connected) {
+      setInspectSessionsError('Bridge disconnected — inspection unavailable.');
+      return;
+    }
+    setInspectLoading(true);
+    try {
+      const res = await fetchInspectionSessions(bridgeBase());
+      if (!res.ok || !res.data) throw new Error(res.error || 'sessions fetch failed');
+      setInspectSessions(res.data);
+    } catch (e: unknown) {
+      setInspectSessionsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInspectLoading(false);
+    }
+  };
+  const selectInspectSession = async (sessionId: string) => {
+    setSelectedInspectSession(sessionId);
+    setInspectEvents([]);
+    setInspectEventsError('');
+    if (!bridge.connected) {
+      setInspectEventsError('Bridge disconnected — inspection unavailable.');
+      return;
+    }
+    setInspectEventsLoading(true);
+    try {
+      const res = await fetchInspectionEvents(bridgeBase(), sessionId);
+      if (!res.ok || !res.data) throw new Error(res.error || 'events fetch failed');
+      setInspectEvents(res.data);
+    } catch (e: unknown) {
+      setInspectEventsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInspectEventsLoading(false);
+    }
+  };
   const refreshExplorer = async (root: string, path: string) => {
     setWsError('');
     try {
@@ -964,6 +1015,77 @@ export default function App() {
               <div style={{ color: 'var(--muted)', fontSize: 11 }} data-testid="inspector-empty">
                 {openFile ? `Selected file: ${openFile}` : 'Nothing selected — inspector shows contextual details for the current selection.'}
               </div>
+            </div>
+            <div className="card" style={{ padding: 10 }} data-testid="inspector-runtime">
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Runtime inspection</div>
+              {!bridge.connected && (
+                <div style={{ color: 'var(--muted)', fontSize: 11 }} data-testid="inspector-runtime-offline">
+                  Bridge disconnected — inspection shows live state only when connected.
+                </div>
+              )}
+              {bridge.connected && (
+                <>
+                  <div style={{ fontWeight: 700, fontSize: 12, margin: '6px 0 4px' }}>Workers ({(live?.workers ?? []).length})</div>
+                  {(live?.workers ?? []).length === 0 && (
+                    <div style={{ color: 'var(--muted)', fontSize: 11 }} data-testid="inspector-workers-empty">no workers registered</div>
+                  )}
+                  {(live?.workers ?? []).slice(0, 12).map((w, i) => (
+                    <div className="status-row" key={w.worker ?? w.worker_id ?? i} data-testid={`inspector-worker-${w.worker ?? w.worker_id ?? i}`}>
+                      <span className="k">{w.worker ?? w.worker_id ?? `worker-${i}`}</span>
+                      <span className="v">{w.state ?? 'unknown'}</span>
+                    </div>
+                  ))}
+                  <div style={{ fontWeight: 700, fontSize: 12, margin: '6px 0 4px' }}>Approvals ({(live?.approvals_pending ?? []).length})</div>
+                  {(live?.approvals_pending ?? []).length === 0 && (
+                    <div style={{ color: 'var(--muted)', fontSize: 11 }} data-testid="inspector-approvals-empty">no approvals pending</div>
+                  )}
+                  {(live?.approvals_pending ?? []).slice(0, 12).map((a, i) => (
+                    <div className="status-row" key={i} data-testid={`inspector-approval-${i}`}>
+                      <span className="k">approval-{i}</span>
+                      <span className="v">{typeof a === 'string' ? a : JSON.stringify(a).slice(0, 80)}</span>
+                    </div>
+                  ))}
+                  <div style={{ fontWeight: 700, fontSize: 12, margin: '6px 0 4px' }}>Sessions ({inspectSessions.length})</div>
+                  <button data-testid="inspector-sessions-refresh" onClick={() => void refreshInspection()} disabled={inspectLoading}>
+                    {inspectLoading ? 'Loading…' : 'Load sessions'}
+                  </button>
+                  {inspectSessionsError && (
+                    <div style={{ color: 'var(--danger, #f66)', fontSize: 11 }} data-testid="inspector-sessions-error">{inspectSessionsError}</div>
+                  )}
+                  {inspectSessions.length === 0 && !inspectSessionsError && (
+                    <div style={{ color: 'var(--muted)', fontSize: 11 }} data-testid="inspector-sessions-empty">no sessions loaded — press Load sessions</div>
+                  )}
+                  {inspectSessions.slice(0, 12).map((s) => (
+                    <button
+                      key={s.session_id}
+                      data-testid={`inspector-session-${s.session_id}`}
+                      onClick={() => void selectInspectSession(s.session_id)}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 4 }}
+                    >
+                      {s.session_id} · {s.status} · {Object.keys(s.tasks).length} tasks
+                    </button>
+                  ))}
+                  {selectedInspectSession && (
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }} data-testid="inspector-events-title">
+                        Events · {selectedInspectSession} ({inspectEvents.length})
+                      </div>
+                      {inspectEventsLoading && <div style={{ fontSize: 11 }} data-testid="inspector-events-loading">Loading…</div>}
+                      {inspectEventsError && (
+                        <div style={{ color: 'var(--danger, #f66)', fontSize: 11 }} data-testid="inspector-events-error">{inspectEventsError}</div>
+                      )}
+                      {inspectEvents.length === 0 && !inspectEventsLoading && !inspectEventsError && (
+                        <div style={{ color: 'var(--muted)', fontSize: 11 }} data-testid="inspector-events-empty">no events recorded</div>
+                      )}
+                      {inspectEvents.slice(0, 20).map((e, i) => (
+                        <div className="status-row" key={i} data-testid={`inspector-event-${i}`}>
+                          <span className="v">{e.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
           {openPanels

@@ -29,6 +29,11 @@ vi.mock('./bridge', async (importOriginal) => {
   };
 });
 
+vi.mock('./inspection', () => ({
+  fetchInspectionSessions: vi.fn(async () => ({ ok: true, data: [], error: '' })),
+  fetchInspectionEvents: vi.fn(async () => ({ ok: true, data: [], error: '' })),
+}));
+
 const mockedStatus = vi.mocked(fetchBridgeStatus);
 const mockedTerminal = vi.mocked(createTerminalSession);
 
@@ -269,5 +274,81 @@ describe('dock and layout', () => {
     expect(screen.getByTestId('models-empty').textContent).toContain('no inventory yet');
     expect(screen.getByTestId('open-file').textContent).toBe('no file open');
     await act(async () => {});
+  });
+});
+
+describe('runtime inspection', () => {
+  it('shows honest empty states when runtime has no workers or approvals', async () => {
+    const { user } = await renderOffline();
+    await user.click(screen.getByTestId('sidebar-tab-inspector'));
+    expect(screen.getByTestId('inspector-runtime')).toBeTruthy();
+    expect(screen.getByTestId('inspector-workers-empty').textContent).toContain('no workers registered');
+    expect(screen.getByTestId('inspector-approvals-empty').textContent).toContain('no approvals pending');
+    expect(screen.getByTestId('inspector-sessions-empty').textContent).toContain('no sessions loaded');
+  });
+
+  it('renders live workers and approvals without fabrication', async () => {
+    mockedStatus.mockResolvedValueOnce({
+      connected: true,
+      baseUrl: 'http://127.0.0.1:8471',
+      health: 'OK',
+      runtime: {
+        timestamp: 1,
+        tasks: [],
+        queue_depth: 0,
+        queued_ids: [],
+        active_model: '',
+        models: [],
+        workers: [{ worker_id: 'w-1', state: 'ACTIVE' }],
+        approvals_pending: ['a-1'],
+        progress_pct: 0,
+        results: [],
+        evidence_refs: [],
+        resources: {},
+        health: 'OK',
+        errors: [],
+      },
+      models: [],
+      error: '',
+      agentBridgeVersion: '',
+      ideVersion: '',
+      versionCompatible: false,
+    });
+    const { user } = await renderOffline();
+    await user.click(screen.getByTestId('sidebar-tab-inspector'));
+    expect(screen.getByTestId('inspector-worker-w-1').textContent).toContain('ACTIVE');
+    expect(screen.getByTestId('inspector-approval-0').textContent).toContain('a-1');
+  });
+
+  it('loads sessions on demand and drills into events', async () => {
+    const { fetchInspectionSessions, fetchInspectionEvents } = await import('./inspection');
+    vi.mocked(fetchInspectionSessions).mockResolvedValueOnce({
+      ok: true,
+      data: [{ session_id: 's1', status: 'ACTIVE', mode: 'work', workspace: '/tmp', created_at: 1, tasks: { t1: 'EXECUTING' } }],
+      error: '',
+    });
+    vi.mocked(fetchInspectionEvents).mockResolvedValueOnce({
+      ok: true,
+      data: [{ label: 'task.started', raw: {} }],
+      error: '',
+    });
+    const { user } = await renderOffline();
+    await user.click(screen.getByTestId('sidebar-tab-inspector'));
+    await user.click(screen.getByTestId('inspector-sessions-refresh'));
+    await waitFor(() => expect(screen.getByTestId('inspector-session-s1')).toBeTruthy());
+    expect(screen.getByTestId('inspector-session-s1').textContent).toContain('1 tasks');
+    await user.click(screen.getByTestId('inspector-session-s1'));
+    await waitFor(() => expect(screen.getByTestId('inspector-event-0')).toBeTruthy());
+    expect(screen.getByTestId('inspector-events-title').textContent).toContain('s1');
+  });
+
+  it('reports inspection fetch failures honestly', async () => {
+    const { fetchInspectionSessions } = await import('./inspection');
+    vi.mocked(fetchInspectionSessions).mockResolvedValueOnce({ ok: false, data: null, error: 'HTTP 500' });
+    const { user } = await renderOffline();
+    await user.click(screen.getByTestId('sidebar-tab-inspector'));
+    await user.click(screen.getByTestId('inspector-sessions-refresh'));
+    await waitFor(() => expect(screen.getByTestId('inspector-sessions-error')).toBeTruthy());
+    expect(screen.getByTestId('inspector-sessions-error').textContent).toContain('HTTP 500');
   });
 });
