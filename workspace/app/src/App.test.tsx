@@ -111,6 +111,31 @@ describe('sidebar tabs and focus', () => {
   });
 });
 
+describe('workspace presets', () => {
+  it('applies presets without bridge calls and keeps canonical state', async () => {
+    const { user } = await renderOffline();
+    const callsBefore = mockedStatus.mock.calls.length;
+    const taskBefore = screen.getByTestId('status-task').textContent;
+    await user.click(screen.getByTestId('settings-btn'));
+    const select = screen.getByTestId('preset-select') as HTMLSelectElement;
+    await user.selectOptions(select, 'research');
+    expect(screen.getByTestId('active-preset').textContent).toContain('research');
+    expect(screen.getByTestId('sidebar-tab-web')).toBeTruthy();
+    expect(screen.getByTestId('status-task').textContent).toBe(taskBefore);
+    expect(mockedStatus.mock.calls.length).toBe(callsBefore);
+    await user.click(screen.getByTestId('settings-close'));
+  });
+  it('unavailable preset panels render honestly, never fabricated', async () => {
+    const { user } = await renderOffline();
+    await user.click(screen.getByTestId('settings-btn'));
+    await user.selectOptions(screen.getByTestId('preset-select'), 'research');
+    await user.click(screen.getByTestId('settings-close'));
+    await user.click(screen.getByTestId('sidebar-tab-web'));
+    expect(screen.getByTestId('panel-unavailable-web').textContent).toContain('not connected');
+    expect(screen.getByTestId('status-task').textContent).toContain('no active task');
+  });
+});
+
 describe('dock tabs', () => {
   it('selects runtime tabs with honest empty states, terminal keeps DOM', async () => {
     const { user } = await renderOffline();

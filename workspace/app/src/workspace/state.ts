@@ -89,6 +89,81 @@ export interface WorkLayoutState {
   rightPanels: PanelState[];
   sidebar: SidebarLayout;
   dock: DockState & { height: number | null };
+  /** Active workspace preset id; 'default' means unmodified Work default. */
+  activePresetId: string;
+}
+
+export type MainSurfaceKind = 'editor' | 'documents' | 'canvas';
+
+export interface WorkspacePreset {
+  preset_id: string;
+  title: string;
+  depth: InterfaceDepth;
+  mainKind: MainSurfaceKind;
+  rightPanels: RightPanelId[];
+  dockTab: DockTabId;
+  description: string;
+}
+
+/** Declarative presets: arrangement only, never capability grants. */
+export const WORKSPACE_PRESETS: Record<string, WorkspacePreset> = {
+  default: {
+    preset_id: 'default', title: 'Work default', depth: 'code', mainKind: 'editor',
+    rightPanels: ['agent'], dockTab: 'terminal',
+    description: 'Standard IDE arrangement.',
+  },
+  research: {
+    preset_id: 'research', title: 'Research', depth: 'code', mainKind: 'documents',
+    rightPanels: ['agent', 'inspector', 'web'], dockTab: 'evidence',
+    description: 'Documents-first with evidence dock; web surfaces show honest availability.',
+  },
+  code: {
+    preset_id: 'code', title: 'Code', depth: 'code', mainKind: 'editor',
+    rightPanels: ['agent'], dockTab: 'tests',
+    description: 'Editor-first with tests dock.',
+  },
+  document: {
+    preset_id: 'document', title: 'Document', depth: 'code', mainKind: 'documents',
+    rightPanels: ['agent', 'preview'], dockTab: 'output',
+    description: 'Document-first with preview and output.',
+  },
+  cad: {
+    preset_id: 'cad', title: 'CAD / 3D', depth: 'code', mainKind: 'canvas',
+    rightPanels: ['agent', 'inspector'], dockTab: 'logs',
+    description: 'Canvas host with inspector; CAD backends report honest availability.',
+  },
+  data: {
+    preset_id: 'data', title: 'Data', depth: 'code', mainKind: 'canvas',
+    rightPanels: ['agent', 'data'], dockTab: 'output',
+    description: 'Canvas host with data panel and output dock.',
+  },
+};
+
+export function resolvePreset(presetId: string): WorkspacePreset {
+  const preset = WORKSPACE_PRESETS[presetId];
+  if (!preset) throw new Error(`unknown workspace preset ${presetId}`);
+  return preset;
+}
+
+/**
+ * Apply a preset to a work layout: arrangement only. Canonical task/run
+ * state is untouched; unknown panels fall back honestly (never fabricated).
+ */
+export function applyPreset(layout: WorkLayoutState, presetId: string): WorkLayoutState {
+  const preset = resolvePreset(presetId);
+  const panels: PanelState[] = [];
+  for (const id of preset.rightPanels) {
+    if (!isRightPanelId(id)) continue;
+    if (panels.some((p) => p.id === id)) continue;
+    panels.push({ id, collapsed: false, order: panels.length });
+  }
+  return {
+    ...layout,
+    rightPanels: panels.length > 0 ? panels : [{ id: 'agent', collapsed: false, order: 0 }],
+    sidebar: { ...layout.sidebar, activeTabId: panels.length > 0 ? panels[0].id : 'agent' },
+    dock: { ...layout.dock, selected: preset.dockTab },
+    activePresetId: preset.preset_id,
+  };
 }
 
 /** Depth defaults: chat prioritizes conversation, work prioritizes canvas. */
@@ -101,9 +176,13 @@ export const CHAT_DEFAULT: ChatLayoutState = {
 export const WORK_DEFAULT: WorkLayoutState = {
   openTabs: [],
   selectedFile: '',
-  rightPanels: [{ id: 'agent', collapsed: false, order: 0 }],
+  rightPanels: [
+    { id: 'agent', collapsed: false, order: 0 },
+    { id: 'inspector', collapsed: false, order: 1 },
+  ],
   sidebar: { width: null, focused: false, activeTabId: 'agent' },
   dock: { visible: false, selected: 'terminal', height: null },
+  activePresetId: 'default',
 };
 
 const PANEL_CATALOG: RightPanelId[] = [
@@ -297,9 +376,16 @@ function sanitizeWork(raw: unknown, warnings: string[]): WorkLayoutState {
     warnings.push('work dock tab unknown, using terminal');
   }
   const sidebar = (record.sidebar ?? {}) as Record<string, unknown>;
+  const presetId = typeof record.activePresetId === 'string' && WORKSPACE_PRESETS[record.activePresetId] !== undefined
+    ? record.activePresetId
+    : 'default';
+  if (record.activePresetId !== undefined && presetId === 'default' && record.activePresetId !== 'default') {
+    warnings.push('work preset unknown, using default');
+  }
   return {
     openTabs: Array.isArray(record.openTabs) ? record.openTabs.filter((t): t is string => typeof t === 'string') : [],
     selectedFile: typeof record.selectedFile === 'string' ? record.selectedFile : '',
+    activePresetId: presetId,
     rightPanels: sanitizePanels(record.rightPanels, warnings, 'work'),
     sidebar: {
       width: clampWidth(sidebar.width, warnings),

@@ -89,7 +89,7 @@ describe('right sidebar registry', () => {
     const chat = createInitialChatLayout();
     const work = createInitialWorkLayout();
     expect(chat.rightPanel).toBeNull();
-    expect(work.rightPanels.map((p) => p.id)).toEqual(['agent']);
+    expect(work.rightPanels.map((p) => p.id)).toEqual(['agent', 'inspector']);
     expect(chat.bottomDockVisible).toBe(false);
   });
 });
@@ -119,7 +119,7 @@ describe('layout presets', () => {
     const { CHAT_DEFAULT, WORK_DEFAULT } = await import('./state');
     expect(CHAT_DEFAULT.bottomDockVisible).toBe(false);
     expect(CHAT_DEFAULT.rightPanel).toBeNull();
-    expect(WORK_DEFAULT.rightPanels.map((p) => p.id)).toEqual(['agent']);
+    expect(WORK_DEFAULT.rightPanels.map((p) => p.id)).toEqual(['agent', 'inspector']);
     expect(WORK_DEFAULT.sidebar).toMatchObject({ width: null, focused: false, activeTabId: 'agent' });
     expect(WORK_DEFAULT.dock).toMatchObject({ visible: false, selected: 'terminal', height: null });
   });
@@ -128,6 +128,29 @@ describe('layout presets', () => {
     expect(uiStorageKey('workspace/app')).not.toBe(uiStorageKey('workspace/other'));
     expect(uiStorageKey('workspace/app')).toContain('aetherius.ide.ui.v1:');
     expect(uiStorageKey('').length).toBeGreaterThan(0);
+  });
+});
+
+describe('workspace presets', () => {
+  it('resolves declarative presets deterministically', async () => {
+    const { WORKSPACE_PRESETS, resolvePreset, applyPreset, createInitialWorkLayout } = await import('./state');
+    expect(Object.keys(WORKSPACE_PRESETS).sort()).toEqual(
+      ['cad', 'code', 'data', 'default', 'document', 'research'],
+    );
+    expect(resolvePreset('research').depth).toBe('code');
+    expect(() => resolvePreset('teleport')).toThrowError(/unknown workspace preset/);
+    const applied = applyPreset(createInitialWorkLayout(), 'research');
+    expect(applied.rightPanels.map((p) => p.id)).toEqual(['agent', 'inspector', 'web']);
+    expect(applied.dock.selected).toBe('evidence');
+    expect(applied.activePresetId).toBe('research');
+    expect(applied.sidebar.activeTabId).toBe('agent');
+  });
+  it('preset application is pure and repeatable', async () => {
+    const { applyPreset, createInitialWorkLayout } = await import('./state');
+    const first = applyPreset(createInitialWorkLayout(), 'cad');
+    const second = applyPreset(createInitialWorkLayout(), 'cad');
+    expect(first).toEqual(second);
+    expect(first.rightPanels.map((p) => p.id)).toEqual(['agent', 'inspector']);
   });
 });
 

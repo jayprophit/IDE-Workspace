@@ -39,6 +39,15 @@ Layout state, DOM flags, modes and query parameters grant nothing.
 Authority is backend policy only. Owner-kind principals must arrive from
 backend session state, never from UI state.
 
+## Specialist presets (P23 remainder slice)
+
+Presets are declarative arrangements over the same shell: `WORKSPACE_PRESETS`
+declares depth, main-surface kind, right panels, dock tab and description.
+Applying a preset changes presentation only — never tasks, runs, models,
+grants or principal state. Unknown preset ids are rejected; unknown panels
+fall back honestly. Active preset persists per project. Main-surface kinds
+beyond the editor render honest availability states until backends exist.
+
 ## Layout system (P23 layout unit)
 
 One structural model serves both depths: header, left activity nav, main

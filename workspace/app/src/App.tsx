@@ -7,6 +7,8 @@ import {
   createInitialWorkLayout,
   recoverUiState,
   uiStorageKey,
+  applyPreset,
+  WORKSPACE_PRESETS,
   type DockTabId,
   type RightPanelId,
   type UiStorage,
@@ -121,67 +123,99 @@ export default function App() {
   const [sidebarTab, setSidebarTab] = useState<RightPanelId>(
     restoredLayout?.state.work.sidebar.activeTabId ?? 'agent',
   );
-  const persistUi = (
-    depth: WorkspaceMode,
-    agentOpen: boolean,
-    dock: boolean,
-    tab: DockTabId,
-    width: number | null,
-    focused: boolean,
-    activeTab: RightPanelId,
-  ) => {
+  const [openPanels, setOpenPanels] = useState<RightPanelId[]>(() => {
+    const ids = restoredLayout?.state.work.rightPanels.map((p) => p.id) ?? ['agent', 'inspector'];
+    return ids.length > 0 ? ids : ['agent', 'inspector'];
+  });
+  const [presetId, setPresetId] = useState<string>(
+    restoredLayout?.state.work.activePresetId ?? 'default',
+  );
+  interface LayoutSnapshot {
+    mode: WorkspaceMode;
+    aiOpen: boolean;
+    dockVisible: boolean;
+    dockTab: DockTabId;
+    sidebarWidth: number | null;
+    sidebarFocused: boolean;
+    sidebarTab: RightPanelId;
+    openPanels: RightPanelId[];
+    presetId: string;
+  }
+  const persistSnapshot = (s: LayoutSnapshot) => {
     try {
       const storage = browserUiStorage();
       if (!storage) return;
       const chat = createInitialChatLayout();
       const work = createInitialWorkLayout();
-      work.rightPanels = [{ id: 'agent', collapsed: !agentOpen, order: 0 }];
-      work.sidebar = { width, focused, activeTabId: activeTab };
-      work.dock = { visible: dock, selected: tab, height: null };
-      storage.save(serializeUiState(depth, chat, work));
+      const listed = s.openPanels.length > 0 ? s.openPanels : (['agent'] as RightPanelId[]);
+      work.rightPanels = listed.map((id, order) => ({
+        id,
+        collapsed: id === 'agent' ? !s.aiOpen : false,
+        order,
+      }));
+      work.sidebar = { width: s.sidebarWidth, focused: s.sidebarFocused, activeTabId: s.sidebarTab };
+      work.dock = { visible: s.dockVisible, selected: s.dockTab, height: null };
+      work.activePresetId = WORKSPACE_PRESETS[s.presetId] !== undefined ? s.presetId : 'default';
+      storage.save(serializeUiState(s.mode, chat, work));
     } catch {
       // Persistence is best-effort; layout state must never break the shell.
     }
   };
-  const snapshotLayout = () => ({ mode, aiOpen, dockVisible, dockTab, sidebarWidth, sidebarFocused, sidebarTab });
+  const snapshotLayout = (): LayoutSnapshot => ({
+    mode, aiOpen, dockVisible, dockTab, sidebarWidth, sidebarFocused, sidebarTab,
+    openPanels, presetId,
+  });
   const setMode = (next: WorkspaceMode) => {
     setModeState(next);
-    const s = snapshotLayout();
-    persistUi(next, s.aiOpen, s.dockVisible, s.dockTab, s.sidebarWidth, s.sidebarFocused, s.sidebarTab);
+    persistSnapshot({ ...snapshotLayout(), mode: next });
   };
   const setAiOpen = (next: boolean | ((v: boolean) => boolean)) => {
     setAiOpenState((prev) => {
       const value = typeof next === 'function' ? (next as (v: boolean) => boolean)(prev) : next;
-      const s = snapshotLayout();
-      persistUi(s.mode, value, s.dockVisible, s.dockTab, s.sidebarWidth, s.sidebarFocused, s.sidebarTab);
+      persistSnapshot({ ...snapshotLayout(), aiOpen: value });
       return value;
     });
   };
   const setDockVisible = (next: boolean) => {
     setDockVisibleState(next);
-    const s = snapshotLayout();
-    persistUi(s.mode, s.aiOpen, next, s.dockTab, s.sidebarWidth, s.sidebarFocused, s.sidebarTab);
+    persistSnapshot({ ...snapshotLayout(), dockVisible: next });
   };
   const setDockTab = (next: DockTabId) => {
     setDockTabState(next);
-    const s = snapshotLayout();
-    persistUi(s.mode, s.aiOpen, s.dockVisible, next, s.sidebarWidth, s.sidebarFocused, s.sidebarTab);
+    persistSnapshot({ ...snapshotLayout(), dockTab: next });
   };
   const setSidebarWidth = (next: number | null) => {
     const clamped = next === null ? null : Math.min(640, Math.max(200, Math.round(next)));
     setSidebarWidthState(clamped);
-    const s = snapshotLayout();
-    persistUi(s.mode, s.aiOpen, s.dockVisible, s.dockTab, clamped, s.sidebarFocused, s.sidebarTab);
+    persistSnapshot({ ...snapshotLayout(), sidebarWidth: clamped });
   };
   const setSidebarFocus = (next: boolean) => {
     setSidebarFocused(next);
-    const s = snapshotLayout();
-    persistUi(s.mode, s.aiOpen, s.dockVisible, s.dockTab, s.sidebarWidth, next, s.sidebarTab);
+    persistSnapshot({ ...snapshotLayout(), sidebarFocused: next });
   };
   const selectSidebarTab = (next: RightPanelId) => {
     setSidebarTab(next);
-    const s = snapshotLayout();
-    persistUi(s.mode, s.aiOpen, s.dockVisible, s.dockTab, s.sidebarWidth, s.sidebarFocused, next);
+    persistSnapshot({ ...snapshotLayout(), sidebarTab: next });
+  };
+  const applyPresetToApp = (id: string) => {
+    const preset = WORKSPACE_PRESETS[id];
+    if (!preset) return;
+    const applied = applyPreset(createInitialWorkLayout(), id);
+    const panels = applied.rightPanels.map((p) => p.id);
+    const activeTab = applied.sidebar.activeTabId ?? 'agent';
+    setOpenPanels(panels);
+    setSidebarTab(activeTab);
+    setDockTab(applied.dock.selected);
+    setPresetId(applied.activePresetId);
+    setModeState(preset.depth);
+    persistSnapshot({
+      ...snapshotLayout(),
+      mode: preset.depth,
+      openPanels: panels,
+      sidebarTab: activeTab,
+      dockTab: applied.dock.selected,
+      presetId: applied.activePresetId,
+    });
   };
   const resetLayout = () => {
     try {
@@ -198,6 +232,8 @@ export default function App() {
     setSidebarWidthState(null);
     setSidebarFocused(false);
     setSidebarTab('agent');
+    setOpenPanels(['agent']);
+    setPresetId('default');
   };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeId>('dark');
@@ -442,9 +478,12 @@ export default function App() {
         <section className="workspace" data-testid="center-workspace" aria-label="Universal workspace">
           <div className="card workspace-head">
             <strong data-testid="workspace-title">
-              {mode === 'chat' ? 'Universal Workspace — Chat mode' : 'Universal Workspace — Code mode'}
+              {mode === 'chat' ? 'Universal Workspace - Chat mode' : 'Universal Workspace - Code mode'}
             </strong>
             <span className="pill">mode: {mode}</span>
+            <span className="pill" data-testid="active-preset" title="Workspace arrangement preset (presentation only)">
+              preset: {presetId}
+            </span>
           </div>
 
           <div className="card workspace-body" data-testid="workspace-body">
@@ -693,8 +732,8 @@ export default function App() {
             </button>
             </div>
             <div className="collapse-only-hidden" style={{ display: 'flex', gap: 6, alignItems: 'center', width: '100%', marginTop: 8 }}>
-              <div role="tablist" aria-label="Right sidebar panels" style={{ display: 'flex', gap: 4 }}>
-                {(['agent', 'inspector'] as RightPanelId[]).map((tab) => (
+              <div role="tablist" aria-label="Right sidebar panels" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {openPanels.map((tab) => (
                   <button
                     key={tab}
                     role="tab"
@@ -703,7 +742,7 @@ export default function App() {
                     className={sidebarTab === tab ? 'active' : ''}
                     onClick={() => selectSidebarTab(tab)}
                   >
-                    {tab === 'agent' ? 'Agent' : 'Inspector'}
+                    {tab === 'agent' ? 'Agent' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </button>
                 ))}
               </div>
@@ -728,7 +767,7 @@ export default function App() {
             data-testid="sidebar-panel-agent"
             role="tabpanel"
             aria-label="Agent panel"
-            style={{ display: sidebarTab === 'agent' ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
+            style={{ display: sidebarTab === 'agent' && openPanels.includes('agent') ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
           >
             <div className="card" style={{ padding: 10 }}>
               <div className="status-row"><span className="k">genesis</span><span className="v" data-testid="genesis-ref">{SHARED_GENESIS_REF}</span></div>
@@ -773,7 +812,7 @@ export default function App() {
             data-testid="sidebar-panel-inspector"
             role="tabpanel"
             aria-label="Inspector panel"
-            style={{ display: sidebarTab === 'inspector' ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
+            style={{ display: sidebarTab === 'inspector' && openPanels.includes('inspector') ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
           >
             <div className="card" style={{ padding: 10 }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Inspector</div>
@@ -782,6 +821,27 @@ export default function App() {
               </div>
             </div>
           </div>
+          {openPanels
+            .filter((id) => id !== 'agent' && id !== 'inspector')
+            .map((id) => (
+              <div
+                key={id}
+                className="collapse-only-hidden"
+                data-testid={`sidebar-panel-${id}`}
+                role="tabpanel"
+                aria-label={`${id} panel`}
+                style={{ display: sidebarTab === id ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
+              >
+                <div className="card" style={{ padding: 10 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                    {id.charAt(0).toUpperCase() + id.slice(1)}
+                  </div>
+                  <div style={{ color: 'var(--muted)', fontSize: 11 }} data-testid={`panel-unavailable-${id}`}>
+                    {id} surface: backend not connected. No fabricated content is shown.
+                  </div>
+                </div>
+              </div>
+            ))}
         </aside>
       </div>
 
@@ -808,6 +868,23 @@ export default function App() {
                 {t.label}
               </button>
             ))}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+              Workspace preset (arrangement only — grants no capabilities)
+            </label>
+            <select
+              data-testid="preset-select"
+              aria-label="Workspace preset"
+              value={presetId}
+              onChange={(e) => applyPresetToApp(e.target.value)}
+            >
+              {Object.values(WORKSPACE_PRESETS).map((preset) => (
+                <option key={preset.preset_id} value={preset.preset_id}>
+                  {preset.title}
+                </option>
+              ))}
+            </select>
           </div>
           <div style={{ marginTop: 12, display: 'flex', gap: 6 }}>
             <button className="btn" data-testid="layout-reset" onClick={() => resetLayout()}>Reset layout</button>

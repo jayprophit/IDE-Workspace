@@ -126,6 +126,16 @@ try {
   await page.click(tid('settings-btn'));
   await page.click(tid('layout-reset'));
   check('layout reset hides dock', (await page.$eval(tid('bottom-dock'), (el) => el.getAttribute('data-state'))) === 'hidden');
+  // Specialist preset: arrangement only, no execution, honest surfaces.
+  await page.$eval(tid('preset-select'), (el) => {
+    el.value = 'research';
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  check('preset pill shows research', (await text('active-preset')).includes('research'));
+  check('preset opens web tab registry entry', (await page.$(tid('sidebar-tab-web'))) !== null);
+  await page.click(tid('sidebar-tab-web'));
+  check('unavailable web panel honest', (await text('panel-unavailable-web')).includes('not connected'));
+  await page.screenshot({ path: 'verify-shell-preset.png' });
   await page.click(tid('settings-close'));
 
   // Tablet-width responsive foundation (sidebar collapses via media query)
