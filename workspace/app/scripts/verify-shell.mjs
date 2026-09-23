@@ -143,6 +143,17 @@ try {
   await new Promise((r) => setTimeout(r, 400));
   const sidebarW = await page.$eval(tid('left-nav'), (el) => el.getBoundingClientRect().width);
   check('tablet width keeps layout (narrow sidebar)', sidebarW < 150, `sidebar=${Math.round(sidebarW)}px`);
+  // Narrow viewport: overlay drawer, preference preserved on widen.
+  await page.setViewport({ width: 500, height: 900 });
+  await new Promise((r) => setTimeout(r, 400));
+  check('narrow viewport reports narrow', (await page.$eval(tid('shell-root'), (el) => el.getAttribute('data-viewport'))) === 'narrow');
+  check('drawer toggle appears', (await page.$(tid('sidebar-drawer-toggle'))) !== null);
+  await page.click(tid('sidebar-drawer-toggle'));
+  check('drawer opens as overlay', (await page.$eval(tid('right-sidebar'), (el) => el.getAttribute('data-overlay'))) === 'open');
+  await page.screenshot({ path: 'verify-shell-narrow.png' });
+  await page.setViewport({ width: 1440, height: 1000 });
+  await new Promise((r) => setTimeout(r, 400));
+  check('widen restores desktop sidebar', (await page.$eval(tid('right-sidebar'), (el) => el.getAttribute('data-overlay'))) === 'none');
   await page.screenshot({ path: 'verify-shell.png' });
 } catch (e) {
   check('verification script', false, String(e).slice(0, 500));

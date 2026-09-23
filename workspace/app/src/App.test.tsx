@@ -136,6 +136,39 @@ describe('workspace presets', () => {
   });
 });
 
+describe('responsive overlay drawer', () => {
+  const setWidth = (width: number) => {
+    Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+  };
+  it('narrows to overlay drawer, widens back with desktop preference intact', async () => {
+    setWidth(1440);
+    const { user } = await renderOffline();
+    expect(screen.getByTestId('shell-root').getAttribute('data-viewport')).toBe('wide');
+    const width = screen.getByTestId('sidebar-width') as HTMLInputElement;
+    fireEvent.change(width, { target: { value: '400' } });
+    const callsBefore = mockedStatus.mock.calls.length;
+    setWidth(500);
+    expect(await screen.findByTestId('sidebar-drawer-toggle')).toBeTruthy();
+    expect(screen.getByTestId('shell-root').getAttribute('data-viewport')).toBe('narrow');
+    expect(screen.getByTestId('right-sidebar').getAttribute('data-overlay')).toBe('closed');
+    await user.click(screen.getByTestId('sidebar-drawer-toggle'));
+    expect(screen.getByTestId('right-sidebar').getAttribute('data-overlay')).toBe('open');
+    expect(screen.getByTestId('status-task').textContent).toContain('no active task');
+    setWidth(1440);
+    expect(await screen.findByTestId('sidebar-width')).toBeTruthy();
+    // Desktop preference survived the narrow excursion untouched.
+    expect((screen.getByTestId('sidebar-width') as HTMLInputElement).value).toBe('400');
+    expect(screen.getByTestId('right-sidebar').getAttribute('data-overlay')).toBe('none');
+    expect(mockedStatus.mock.calls.length).toBe(callsBefore);
+  });
+  it('unmount cleans up without errors', async () => {
+    const { view } = await renderOffline();
+    view.unmount();
+    window.dispatchEvent(new Event('resize'));
+  });
+});
+
 describe('dock tabs', () => {
   it('selects runtime tabs with honest empty states, terminal keeps DOM', async () => {
     const { user } = await renderOffline();

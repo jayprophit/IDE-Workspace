@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ThemeId, WorkspaceMode } from './types';
 import { fetchBridgeStatus, type BridgeStatus, bridgeBase, createTerminalSession, execTerminal, fetchTerminalSession, type TerminalEntryView, listWorkspace, readWorkspaceFile, writeWorkspaceFile, searchWorkspace, gitWorkspace, createWorkspaceEntry, deleteWorkspaceEntry, renameWorkspaceEntry, type WorkspaceEntry } from './bridge';
 import {
@@ -8,6 +8,8 @@ import {
   recoverUiState,
   uiStorageKey,
   applyPreset,
+  classifyViewport,
+  sidebarOverlays,
   WORKSPACE_PRESETS,
   type DockTabId,
   type RightPanelId,
@@ -130,6 +132,24 @@ export default function App() {
   const [presetId, setPresetId] = useState<string>(
     restoredLayout?.state.work.activePresetId ?? 'default',
   );
+  // Responsive viewport tracking: transient overlay state only — desktop
+  // preferences (width, panels, dock) are never overwritten by narrow views.
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window === 'undefined' ? 1440 : window.innerWidth,
+  );
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerToggleRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const viewport = classifyViewport(viewportWidth);
+  const overlaySidebar = sidebarOverlays(viewport);
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    drawerToggleRef.current?.focus();
+  };
   interface LayoutSnapshot {
     mode: WorkspaceMode;
     aiOpen: boolean;
@@ -426,7 +446,7 @@ export default function App() {
   };
 
   return (
-    <div className="shell" data-theme={theme} data-testid="shell-root">
+    <div className="shell" data-theme={theme} data-testid="shell-root" data-viewport={viewport}>
       <header className="topbar" data-testid="top-header">
         <div className="brand">
           <span className="brand-mark" aria-hidden>◈</span>
@@ -694,12 +714,31 @@ export default function App() {
           </section>
         </section>
 
+        {overlaySidebar && (
+          <button
+            className="btn"
+            data-testid="sidebar-drawer-toggle"
+            ref={drawerToggleRef}
+            aria-expanded={drawerOpen}
+            onClick={() => (drawerOpen ? closeDrawer() : setDrawerOpen(true))}
+            title="Toggle contextual sidebar drawer"
+          >
+            Panel
+          </button>
+        )}
         <aside
-          className={`ai-panel ${aiOpen ? '' : 'collapsed'}${sidebarFocused ? ' focused' : ''}`}
+          className={`ai-panel ${aiOpen ? '' : 'collapsed'}${sidebarFocused ? ' focused' : ''}${overlaySidebar ? ' overlay' : ''}`}
           data-testid="right-sidebar"
           data-focused={sidebarFocused ? 'true' : 'false'}
+          data-overlay={overlaySidebar ? (drawerOpen ? 'open' : 'closed') : 'none'}
           aria-label="Right contextual workspace"
-          style={sidebarWidth ? { width: sidebarWidth } : undefined}
+          style={
+            overlaySidebar
+              ? { display: drawerOpen ? 'flex' : 'none' }
+              : sidebarWidth
+                ? { width: sidebarWidth }
+                : undefined
+          }
         >
         <div data-testid="ai-panel" data-state={aiOpen ? 'expanded' : 'collapsed'}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', width: '100%' }}>

@@ -228,6 +228,28 @@ export function createInitialWorkLayout(): WorkLayoutState {
   return JSON.parse(JSON.stringify(WORK_DEFAULT)) as WorkLayoutState;
 }
 
+export type ViewportClass = 'wide' | 'medium' | 'narrow';
+
+export const VIEWPORT_WIDE_MIN = 1280;
+export const VIEWPORT_NARROW_MAX = 760;
+
+/** Pure viewport classification; thresholds live in one place. */
+export function classifyViewport(widthPx: number): ViewportClass {
+  if (!Number.isFinite(widthPx) || widthPx <= 0) return 'wide';
+  if (widthPx <= VIEWPORT_NARROW_MAX) return 'narrow';
+  if (widthPx < VIEWPORT_WIDE_MIN) return 'medium';
+  return 'wide';
+}
+
+/**
+ * Narrow viewports render the right sidebar as a temporary overlay drawer.
+ * Overlay open/close is TRANSIENT (never persisted): widening always
+ * restores the persisted desktop preference, never the drawer state.
+ */
+export function sidebarOverlays(viewport: ViewportClass): boolean {
+  return viewport === 'narrow';
+}
+
 /** Storage key is per project root so layouts restore per workspace. */
 export function uiStorageKey(projectRoot: string): string {
   const slug = projectRoot.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'default';

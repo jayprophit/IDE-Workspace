@@ -48,6 +48,14 @@ grants or principal state. Unknown preset ids are rejected; unknown panels
 fall back honestly. Active preset persists per project. Main-surface kinds
 beyond the editor render honest availability states until backends exist.
 
+## Responsive adaptation
+
+Viewport classes (wide ≥1280, medium, narrow ≤760) drive presentation only.
+At narrow widths the right sidebar becomes a temporary overlay drawer;
+opening/closing it never touches persisted desktop preferences, and
+widening restores the exact desktop arrangement. Overlay state is transient
+and never persisted. Reduced-motion preferences disable panel transitions.
+
 ## Layout system (P23 layout unit)
 
 One structural model serves both depths: header, left activity nav, main

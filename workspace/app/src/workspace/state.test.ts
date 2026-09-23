@@ -154,6 +154,22 @@ describe('workspace presets', () => {
   });
 });
 
+describe('responsive viewport model', () => {
+  it('classifies wide/medium/narrow deterministically', async () => {
+    const { classifyViewport, sidebarOverlays } = await import('./state');
+    expect(classifyViewport(1440)).toBe('wide');
+    expect(classifyViewport(1280)).toBe('wide');
+    expect(classifyViewport(1279)).toBe('medium');
+    expect(classifyViewport(761)).toBe('medium');
+    expect(classifyViewport(760)).toBe('narrow');
+    expect(classifyViewport(320)).toBe('narrow');
+    expect(classifyViewport(NaN)).toBe('wide');
+    expect(sidebarOverlays('narrow')).toBe(true);
+    expect(sidebarOverlays('medium')).toBe(false);
+    expect(sidebarOverlays('wide')).toBe(false);
+  });
+});
+
 describe('version migration and section recovery', () => {
   it('migrates v1 payloads with defaults for new fields', async () => {
     const { parseUiState } = await import('./state');

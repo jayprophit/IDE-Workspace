@@ -285,6 +285,22 @@ body {
 .ai-panel.collapsed { width: 60px; align-items: center; }
 .ai-panel.collapsed .collapse-only-hidden { display: none; }
 
+/* Narrow-viewport overlay drawer: temporary surface, never persisted. */
+.ai-panel.overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(86vw, 360px);
+  z-index: 40;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-panel { transition: none; }
+}
+
 .avatar {
   width: 44px; height: 44px; border-radius: 50%;
   background: linear-gradient(135deg, #0ea5e9, #6366f1);
