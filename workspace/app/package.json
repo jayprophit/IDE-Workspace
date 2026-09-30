@@ -7,7 +7,9 @@
     "dev": "vite --port 5199 --host 127.0.0.1 --strictPort",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 5199 --host 127.0.0.1",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:bridge": "cd .. && python -m pytest integration/tests -q",
+    "test:all": "npm test && npm run test:bridge"
   },
   "dependencies": {
     "react": "^19.0.0",
