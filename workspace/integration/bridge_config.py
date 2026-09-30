@@ -55,6 +55,16 @@ class BridgeConfig:
     )
     approval: str = field(default_factory=lambda: os.getenv("IDE_APPROVAL", "AUTO_SAFE"))
     mode: str = field(default_factory=lambda: os.getenv("IDE_MODE", "build"))
+    # Human-in-the-loop. The runtime switch is server-side and owner-chosen
+    # (AGENT_BRIDGE_EXTERNAL_APPROVALS); the session opt-in is per session. Both
+    # are off by default, so a session can never start waiting for a decision
+    # the runtime would refuse to accept.
+    external_approvals: bool = field(
+        default_factory=lambda: os.getenv("AGENT_BRIDGE_EXTERNAL_APPROVALS", "") == "1"
+    )
+    interactive_approvals: bool = field(
+        default_factory=lambda: os.getenv("IDE_INTERACTIVE_APPROVALS", "") == "1"
+    )
     task_timeout_s: float = field(
         default_factory=lambda: float(os.getenv("IDE_TASK_TIMEOUT_S", "1500"))
     )

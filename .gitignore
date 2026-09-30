@@ -48,3 +48,11 @@ workspace/integration/.env.local.example
 # is local by definition and is never a source artifact.
 .bridge/
 workspace/.bridge/
+
+# IDE-side Agent Bridge worker state (default IDE_WORKER_DIR). The integration
+# launcher written by BridgeService.start_injected() lands here, and a hosted
+# runtime writes its own worker artifacts beside it. Runtime/generated state is
+# local by definition and is never a source artifact - same rule as .bridge/.
+workspace/.agent-worker-test/
+.agent-worker-test/
+**/.pytest_cache/

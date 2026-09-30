@@ -23,6 +23,7 @@ import {
   type DetachedHandle,
 } from './workspace/detach';
 import DetachedView from './DetachedView';
+import GenesisTaskBar from './components/GenesisTaskBar';
 
 function browserWindowOpener(): {
   open(url: string, target: string, features?: string): DetachedHandle | null;
@@ -1016,6 +1017,17 @@ export default function App() {
                 {openFile ? `Selected file: ${openFile}` : 'Nothing selected — inspector shows contextual details for the current selection.'}
               </div>
             </div>
+            {/*
+              The human-in-the-loop seam. It owns no canonical state: the
+              session, the task and the authority decision all live in Agent
+              Bridge. It exists because the inspector could previously only
+              display approvals it could never answer.
+            */}
+            {bridge.connected && (
+              <div className="card" style={{ padding: 10 }}>
+                <GenesisTaskBar baseUrl={bridge.baseUrl} workspace={wsRoot || 'C:/'} />
+              </div>
+            )}
             <div className="card" style={{ padding: 10 }} data-testid="inspector-runtime">
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Runtime inspection</div>
               {!bridge.connected && (

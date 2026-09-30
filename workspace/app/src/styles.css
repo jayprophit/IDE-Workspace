@@ -368,3 +368,24 @@ body {
   .ai-panel { width: 240px; }
   .code-grid { grid-template-columns: 1fr; }
 }
+
+/* Genesis task bar: the human-in-the-loop seam (P25 approvals + effect truth).
+   A blocked run must never look like a successful one, so the outcome states
+   are colour-coded and never share a style. */
+.genesis-bar { display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+.genesis-bar header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.genesis-bar header .k { color: var(--muted); font-weight: 700; }
+.genesis-bar .row { display: flex; gap: 6px; }
+.genesis-bar .row input { flex: 1; min-width: 0; }
+.genesis-bar .approvals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.genesis-bar .approvals li {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--radius);
+}
+.genesis-bar .muted { color: var(--muted); }
+.genesis-bar .outcome { padding: 4px 6px; border-radius: var(--radius); border: 1px solid var(--border); }
+.genesis-bar .outcome.achieved { color: #34d399; border-color: rgba(52,211,153,.5); }
+.genesis-bar .outcome.blocked { color: #fbbf24; border-color: rgba(251,191,36,.5); font-weight: 700; }
+.genesis-bar .outcome.none { color: var(--muted); }
+.genesis-bar .evidence { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
+.genesis-bar .error { color: #f87171; }

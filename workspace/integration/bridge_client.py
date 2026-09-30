@@ -62,6 +62,7 @@ class IdeBridgeClient:
         approval: str = "",
         model: str = "",
         mode: str = "",
+        interactive: bool | None = None,
     ) -> dict:
         cfg = self.config
         # Use the configured workspace root, or fall back to worker_dir,
@@ -73,6 +74,7 @@ class IdeBridgeClient:
             mode=mode or cfg.mode,
             approval=approval or cfg.approval,
             model=model or cfg.model,
+            interactive=cfg.interactive_approvals if interactive is None else interactive,
         )
 
     def submit_task(self, session_id: str, text: str, idempotency_key: str = "") -> dict:
@@ -133,6 +135,27 @@ class IdeBridgeClient:
     # -- verification / recovery -----------------------------------------
     def get_verification(self, session_id: str, task_id: str = "") -> dict:
         return self.client.scorecard(session_id)
+
+    def get_outcome(self, session_id: str, task_id: str) -> dict:
+        """Effect truth for one task, straight from the Bridge result.
+
+        ``effect_achieved`` / ``denied_actions`` / ``blocked`` are the fields
+        that stop a refused run from being shown as a success. They are read,
+        never inferred from the status string.
+        """
+        payload = self.client.export(session_id, task_id, "json")
+        result = payload.get("task_result") if isinstance(payload, dict) else None
+        if not isinstance(result, dict):
+            raise RuntimeError("export payload has no task_result")
+        return result
+
+    def get_evidence(self, session_id: str) -> dict:
+        """Manifest + scorecard + timeline in one readback."""
+        return {
+            "manifest": self.client.manifest(session_id),
+            "scorecard": self.client.scorecard(session_id),
+            "timeline": self.client.timeline(session_id),
+        }
 
     def timeline(self, session_id: str) -> dict:
         return self.client.timeline(session_id)
