@@ -80,6 +80,63 @@ class IdeBridgeClient:
     def submit_task(self, session_id: str, text: str, idempotency_key: str = "") -> dict:
         return self.client.submit_task(session_id, text, idempotency_key)
 
+    def submit_action(
+        self,
+        action_id: str,
+        action: str,
+        resource: str,
+        workspace: str = "",
+        session_id: str = "",
+        payload: dict | None = None,
+        principal: dict | None = None,
+        owner_mode: str = "",
+        approval: str = "",
+        interactive: bool = False,
+        wait_ms: int = 30000,
+    ) -> dict:
+        """Typed action intake. Carries a decided action to the Bridge; the
+        session's own approval gate, policy engine, executor and journal do
+        the rest. Never authorizes anything."""
+        return self.client.submit_action(
+            action_id=action_id, action=action, resource=resource,
+            workspace=workspace or self.config.workspace_root,
+            session_id=session_id, payload=payload or {},
+            principal=principal, owner_mode=owner_mode, approval=approval,
+            interactive=interactive, wait_ms=wait_ms)
+
+    def action_status(self, action_id: str) -> dict:
+        return self.client.action_status(action_id)
+
+    def submit_proposal(
+        self,
+        proposal: dict,
+        parameters: dict | None = None,
+        workspace: str = "",
+        approval: str = "",
+        interactive: bool = False,
+        owner_mode: str = "",
+        wait_ms: int = 30000,
+    ) -> dict:
+        """Genesis proposal -> BridgeActionRequest -> POST /v1/actions.
+
+        Returns both halves for evidence: the translated request and the
+        intake response. The adapter translates only; authority still comes
+        from P25/policy/approval, never from the proposal.
+        """
+        from .proposal_adapter import adapt_proposal
+        body = adapt_proposal(
+            proposal, parameters, workspace=workspace or self.config.workspace_root,
+            approval=approval, interactive=interactive, owner_mode=owner_mode,
+            wait_ms=wait_ms)
+        response = self.submit_action(
+            action_id=body["action_id"], action=body["action"],
+            resource=body["resource"], workspace=body["workspace"],
+            session_id=body["session_id"], payload=body["payload"],
+            principal=body["principal"], owner_mode=body["owner_mode"],
+            approval=body["approval"], interactive=body["interactive"],
+            wait_ms=body["wait_ms"])
+        return {"request": body, "response": response}
+
     def get_progress(self, session_id: str) -> dict:
         """Session status: task states + pending approvals."""
         return self.client.session_status(session_id)
