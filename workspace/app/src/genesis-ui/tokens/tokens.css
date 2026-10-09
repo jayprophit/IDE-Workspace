@@ -1,0 +1,664 @@
+/* ============================================================================
+ * Genesis / Aetherius design tokens
+ * ----------------------------------------------------------------------------
+ * Three layers, in strict cascade order:
+ *   1. PRIMITIVES  - raw scales. No meaning attached. Never theme-specific.
+ *   2. SEMANTIC    - role names (surface, text, accent). Themes remap these.
+ *   3. COMPONENT   - per-component overrides, kept small and rare.
+ *
+ * Themes (section 3) and layout density (section 4) only ever remap SEMANTIC
+ * tokens. A theme must never invent a new token name, and a component must
+ * never reach past the semantic layer for a primitive. That constraint is
+ * what keeps one layout rendering correctly under all five themes.
+ *
+ * Placeholder note: fonts are declared as *stacks*, not as loaded assets. No
+ * webfont is bundled or fetched here. See docs/GAP_LIST.md for the typeface
+ * work that is still open.
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * 1. PRIMITIVES
+ * Raw scales. Values here are not theme-aware on purpose.
+ * ------------------------------------------------------------------------ */
+
+:root {
+  /* --- Colour ramps -------------------------------------------------------
+   * Single-hue ramps, 50..900, used to build semantic roles per theme.
+   * `blue` is the Genesis primary hue family; the others exist so a warm or
+   * neutral theme has real steps to reach for instead of eyeballed hexes. */
+  --p-blue-50: #eff6ff;
+  --p-blue-100: #dbeafe;
+  --p-blue-200: #bfdbfe;
+  --p-blue-300: #93c5fd;
+  --p-blue-400: #60a5fa;
+  --p-blue-500: #3b82f6;
+  --p-blue-600: #2563eb;
+  --p-blue-700: #1d4ed8;
+  --p-blue-800: #1e40af;
+  --p-blue-900: #1e3a8a;
+
+  --p-cyan-300: #67e8f9;
+  --p-cyan-400: #22d3ee;
+  --p-cyan-500: #06b6d4;
+  --p-cyan-600: #0891b2;
+
+  --p-violet-300: #c4b5fd;
+  --p-violet-400: #a78bfa;
+  --p-violet-500: #8b5cf6;
+  --p-violet-600: #7c3aed;
+  --p-violet-700: #6d28d9;
+
+  --p-amber-200: #fde68a;
+  --p-amber-300: #fcd34d;
+  --p-amber-400: #fbbf24;
+  --p-amber-500: #f59e0b;
+  --p-amber-600: #d97706;
+  --p-amber-700: #b45309;
+
+  --p-emerald-400: #34d399;
+  --p-emerald-500: #10b981;
+  --p-emerald-600: #059669;
+
+  --p-rose-400: #fb7185;
+  --p-rose-500: #f43f5e;
+  --p-rose-600: #e11d48;
+
+  /* Neutrals - cool-leaning, so they sit under the blue themes naturally.
+   * Warm and neutral themes re-map the semantic roles onto these anyway; they
+   * do not need their own grey ramp. */
+  --p-slate-50: #f8fafc;
+  --p-slate-100: #f1f5f9;
+  --p-slate-200: #e2e8f0;
+  --p-slate-300: #cbd5e1;
+  --p-slate-400: #94a3b8;
+  --p-slate-500: #64748b;
+  --p-slate-600: #475569;
+  --p-slate-700: #334155;
+  --p-slate-800: #1e293b;
+  --p-slate-900: #0f172a;
+  --p-slate-950: #020617;
+
+  /* --- Spacing -----------------------------------------------------------
+   * 4px base grid. Steps 13-16 exist only for avatar-stage sizing, which is
+   * the one place the references genuinely run large. */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-10: 20px;
+  --space-12: 24px;
+  --space-16: 32px;
+  --space-20: 40px;
+  --space-24: 48px;
+  --space-32: 64px;
+
+  /* --- Radii ------------------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 999px;
+
+  /* --- Border widths ----------------------------------------------------- */
+  --border-width-hair: 1px;
+  --border-width-thick: 2px;
+  --border-width-focus: 2px;
+
+  /* --- Typography --------------------------------------------------------
+   * PLACEHOLDER TYPE STACKS. No font files are loaded by this scaffold.
+   * The UI renders in whatever the OS resolves these to. See GAP_LIST.md. */
+  --font-sans: 'Segoe UI', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Segoe UI Semibold', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+
+  /* Type scale, in px. The shell runs at 13px to match the VS Code-class
+   * density in the references; these are absolute so a token is readable
+   * without knowing the root size. */
+  --text-2xs: 9px;
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-base: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+  --text-display: 44px;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-heavy: 800;
+
+  /* Letterspacing. Display sizes tighten; labels open up. */
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+  --tracking-widest: 0.12em;
+  --tracking-caps: 0.08em;
+
+  /* --- Motion ------------------------------------------------------------
+   * Durations are short by design. The scaffold animates only state
+   * transitions and decorative loops - see GAP_LIST.md before adding motion
+   * to the avatar itself. */
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+  --duration-slow: 380ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* --- Z-index ladder ---------------------------------------------------- */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-drawer: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+
+  /* --- Avatar stage sizing ----------------------------------------------
+   * Live in the primitive layer because they are geometry, not colour, and
+   * two themes must agree on them. Layout density rescales these below. */
+  --avatar-size-chip: 28px;
+  --avatar-size-sm: 40px;
+  --avatar-size-md: 56px;
+  --avatar-size-lg: 88px;
+  --avatar-size-xl: 140px;
+  --avatar-size-2xl: 220px;
+  --avatar-size-3xl: 340px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. SEMANTIC TOKENS (default = Genesis dark blue)
+ * These are the names components are allowed to reference.
+ * ------------------------------------------------------------------------ */
+
+:root,
+[data-genesis-theme='abyss'] {
+  color-scheme: dark;
+
+  /* Backdrop, from furthest back to nearest front. */
+  --surface-canvas: var(--p-slate-950);
+  --surface-sunken: #060a12;
+  --surface-base: #0b1120;
+  --surface-raised: #111a2e;
+  --surface-overlay: #16203a;
+  --surface-inset: rgba(2, 6, 23, 0.5);
+  --surface-scrim: rgba(2, 6, 23, 0.72);
+
+  /* Frosted glass. Frosted is the default reading of the references: a
+   * translucent panel floating over the canvas, not an opaque box. */
+  --glass-bg: rgba(17, 24, 39, 0.62);
+  --glass-bg-strong: rgba(17, 24, 39, 0.82);
+  --glass-border: rgba(148, 163, 184, 0.18);
+  --glass-blur: 18px;
+  --glass-saturate: 140%;
+
+  /* Text */
+  --text-primary: #e8eefb;
+  --text-secondary: #a8b6cf;
+  --text-muted: #6b7c99;
+  --text-inverse: var(--p-slate-950);
+  --text-accent: var(--p-blue-300);
+
+  /* Borders */
+  --border-subtle: rgba(148, 163, 184, 0.1);
+  --border-default: rgba(148, 163, 184, 0.18);
+  --border-strong: rgba(148, 163, 184, 0.32);
+  --border-accent: rgba(96, 165, 250, 0.55);
+
+  /* Accent - the Genesis signature blue-to-cyan. */
+  --accent-base: var(--p-blue-500);
+  --accent-strong: var(--p-blue-600);
+  --accent-soft: rgba(59, 130, 246, 0.14);
+  --accent-softer: rgba(59, 130, 246, 0.07);
+  --accent-text: var(--p-blue-300);
+  --accent-contrast: #ffffff;
+  --accent-gradient: linear-gradient(135deg, var(--p-blue-600), var(--p-cyan-500));
+
+  /* State colours. Each carries a matching soft wash so components never
+   * hand-mix opacity values against arbitrary backgrounds. */
+  --state-success: var(--p-emerald-400);
+  --state-success-soft: rgba(16, 185, 129, 0.14);
+  --state-warning: var(--p-amber-400);
+  --state-warning-soft: rgba(245, 158, 11, 0.14);
+  --state-danger: var(--p-rose-400);
+  --state-danger-soft: rgba(244, 63, 94, 0.14);
+  --state-info: var(--p-cyan-400);
+  --state-info-soft: rgba(6, 182, 212, 0.14);
+  --state-neutral: var(--p-slate-400);
+  --state-neutral-soft: rgba(148, 163, 184, 0.14);
+
+  /* Shadows. Cool-tinted so they read as depth in the dark themes rather
+   * than as grey smudges. */
+  --shadow-xs: 0 1px 2px rgba(2, 6, 23, 0.4);
+  --shadow-sm: 0 2px 6px rgba(2, 6, 23, 0.45);
+  --shadow-md: 0 8px 20px rgba(2, 6, 23, 0.5);
+  --shadow-lg: 0 18px 44px rgba(2, 6, 23, 0.6);
+  --shadow-panel: 0 12px 32px rgba(2, 6, 23, 0.4);
+  --shadow-accent-glow: 0 0 0 1px var(--border-accent), 0 0 18px rgba(59, 130, 246, 0.35);
+  --shadow-accent-glow-strong: 0 0 0 1px var(--accent-base), 0 0 28px rgba(59, 130, 246, 0.55);
+
+  /* Focus ring. One definition, so every theme and every density mode gives
+   * keyboard users the same visible affordance. */
+  --focus-ring: 0 0 0 var(--border-width-focus) var(--accent-base);
+  --focus-ring-offset: 0 0 0 4px var(--accent-soft);
+
+  /* Ambient canvas glow, layered behind everything. */
+  --canvas-glow: radial-gradient(1100px 480px at 72% -12%, rgba(59, 130, 246, 0.14), transparent 62%),
+    radial-gradient(760px 420px at 8% 108%, rgba(6, 182, 212, 0.09), transparent 60%);
+}
+
+/* --- Aurora / purple ----------------------------------------------------- */
+[data-genesis-theme='aurora'] {
+  color-scheme: dark;
+
+  --surface-canvas: #0d0618;
+  --surface-sunken: #080310;
+  --surface-base: #150a24;
+  --surface-raised: #1e1033;
+  --surface-overlay: #271645;
+  --surface-inset: rgba(8, 3, 16, 0.5);
+  --surface-scrim: rgba(8, 3, 16, 0.75);
+
+  --glass-bg: rgba(30, 16, 51, 0.6);
+  --glass-bg-strong: rgba(30, 16, 51, 0.82);
+  --glass-border: rgba(167, 139, 250, 0.2);
+  --glass-blur: 20px;
+  --glass-saturate: 155%;
+
+  --text-primary: #f1e9ff;
+  --text-secondary: #bda9e0;
+  --text-muted: #7d68a3;
+  --text-inverse: #0d0618;
+  --text-accent: var(--p-violet-300);
+
+  --border-subtle: rgba(167, 139, 250, 0.1);
+  --border-default: rgba(167, 139, 250, 0.2);
+  --border-strong: rgba(167, 139, 250, 0.36);
+  --border-accent: rgba(167, 139, 250, 0.6);
+
+  --accent-base: var(--p-violet-500);
+  --accent-strong: var(--p-violet-600);
+  --accent-soft: rgba(139, 92, 246, 0.16);
+  --accent-softer: rgba(139, 92, 246, 0.08);
+  --accent-text: var(--p-violet-300);
+  --accent-contrast: #ffffff;
+  --accent-gradient: linear-gradient(135deg, var(--p-violet-600), var(--p-cyan-500));
+
+  --state-success: #4ade80;
+  --state-warning: var(--p-amber-300);
+  --state-danger: #fb7185;
+
+  --shadow-panel: 0 12px 32px rgba(8, 3, 16, 0.55);
+  --shadow-accent-glow: 0 0 0 1px var(--border-accent), 0 0 18px rgba(139, 92, 246, 0.4);
+  --shadow-accent-glow-strong: 0 0 0 1px var(--accent-base), 0 0 30px rgba(139, 92, 246, 0.6);
+
+  --canvas-glow: radial-gradient(1100px 500px at 70% -10%, rgba(139, 92, 246, 0.22), transparent 62%),
+    radial-gradient(820px 460px at 6% 106%, rgba(6, 182, 212, 0.14), transparent 60%);
+}
+
+/* --- Amber / warm -------------------------------------------------------- */
+[data-genesis-theme='ember'] {
+  color-scheme: dark;
+
+  --surface-canvas: #120b04;
+  --surface-sunken: #0c0703;
+  --surface-base: #1c1208;
+  --surface-raised: #26190c;
+  --surface-overlay: #332110;
+  --surface-inset: rgba(12, 7, 3, 0.5);
+  --surface-scrim: rgba(12, 7, 3, 0.74);
+
+  --glass-bg: rgba(38, 25, 12, 0.62);
+  --glass-bg-strong: rgba(38, 25, 12, 0.84);
+  --glass-border: rgba(251, 191, 36, 0.2);
+  --glass-blur: 18px;
+  --glass-saturate: 135%;
+
+  --text-primary: #fdf2e0;
+  --text-secondary: #d6bd97;
+  --text-muted: #9c8261;
+  --text-inverse: #120b04;
+  --text-accent: var(--p-amber-200);
+
+  --border-subtle: rgba(251, 191, 36, 0.1);
+  --border-default: rgba(251, 191, 36, 0.2);
+  --border-strong: rgba(251, 191, 36, 0.34);
+  --border-accent: rgba(251, 191, 36, 0.55);
+
+  --accent-base: var(--p-amber-500);
+  --accent-strong: var(--p-amber-600);
+  --accent-soft: rgba(245, 158, 11, 0.15);
+  --accent-softer: rgba(245, 158, 11, 0.07);
+  --accent-text: var(--p-amber-200);
+  --accent-contrast: #1a1208;
+  --accent-gradient: linear-gradient(135deg, var(--p-amber-600), var(--p-rose-500));
+
+  --state-success: #86efac;
+  --state-info: var(--p-amber-300);
+  --state-danger: #fb7185;
+  --state-warning: var(--p-amber-400);
+
+  --shadow-panel: 0 12px 32px rgba(12, 7, 3, 0.55);
+  --shadow-accent-glow: 0 0 0 1px var(--border-accent), 0 0 18px rgba(245, 158, 11, 0.32);
+  --shadow-accent-glow-strong: 0 0 0 1px var(--accent-base), 0 0 28px rgba(245, 158, 11, 0.5);
+
+  --canvas-glow: radial-gradient(1100px 480px at 72% -12%, rgba(245, 158, 11, 0.16), transparent 62%),
+    radial-gradient(780px 420px at 8% 106%, rgba(244, 63, 94, 0.08), transparent 60%);
+}
+
+/* --- Graphite / neutral -------------------------------------------------- */
+[data-genesis-theme='graphite'] {
+  color-scheme: dark;
+
+  --surface-canvas: #101114;
+  --surface-sunken: #0a0b0d;
+  --surface-base: #17181c;
+  --surface-raised: #1f2026;
+  --surface-overlay: #272930;
+  --surface-inset: rgba(10, 11, 13, 0.5);
+  --surface-scrim: rgba(10, 11, 13, 0.76);
+
+  --glass-bg: rgba(31, 32, 38, 0.68);
+  --glass-bg-strong: rgba(31, 32, 38, 0.88);
+  --glass-border: rgba(203, 213, 225, 0.14);
+  --glass-blur: 12px;
+  --glass-saturate: 100%;
+
+  --text-primary: #eceef2;
+  --text-secondary: #a9adb8;
+  --text-muted: #73777f;
+  --text-inverse: #101114;
+  --text-accent: var(--p-slate-200);
+
+  --border-subtle: rgba(203, 213, 225, 0.08);
+  --border-default: rgba(203, 213, 225, 0.14);
+  --border-strong: rgba(203, 213, 225, 0.26);
+  --border-accent: rgba(203, 213, 225, 0.5);
+
+  /* Deliberately desaturated. Graphite is the theme for people who want the
+   * hierarchy without a brand voice; colour is reserved for state only. */
+  --accent-base: var(--p-slate-400);
+  --accent-strong: var(--p-slate-500);
+  --accent-soft: rgba(148, 163, 184, 0.14);
+  --accent-softer: rgba(148, 163, 184, 0.07);
+  --accent-text: var(--p-slate-200);
+  --accent-contrast: #101114;
+  --accent-gradient: linear-gradient(135deg, var(--p-slate-500), var(--p-slate-400));
+
+  --state-success: var(--p-emerald-400);
+  --state-warning: var(--p-amber-400);
+  --state-danger: var(--p-rose-400);
+  --state-info: var(--p-slate-300);
+  --state-neutral: var(--p-slate-400);
+
+  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-accent-glow: 0 0 0 1px var(--border-accent), 0 0 14px rgba(203, 213, 225, 0.16);
+  --shadow-accent-glow-strong: 0 0 0 1px var(--accent-base), 0 0 22px rgba(203, 213, 225, 0.24);
+
+  --canvas-glow: radial-gradient(1000px 440px at 72% -12%, rgba(203, 213, 225, 0.06), transparent 62%);
+}
+
+/* --- Frosted / light ----------------------------------------------------- */
+[data-genesis-theme='frost'] {
+  color-scheme: light;
+
+  --surface-canvas: #eef2f7;
+  --surface-sunken: #e2e8f0;
+  --surface-base: #f7f9fc;
+  --surface-raised: #ffffff;
+  --surface-overlay: #ffffff;
+  --surface-inset: rgba(255, 255, 255, 0.7);
+  --surface-scrim: rgba(148, 163, 184, 0.4);
+
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-bg-strong: rgba(255, 255, 255, 0.86);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --glass-blur: 22px;
+  --glass-saturate: 170%;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #7c8ba1;
+  --text-inverse: #ffffff;
+  --text-accent: var(--p-blue-700);
+
+  --border-subtle: rgba(15, 23, 42, 0.07);
+  --border-default: rgba(15, 23, 42, 0.13);
+  --border-strong: rgba(15, 23, 42, 0.24);
+  --border-accent: rgba(37, 99, 235, 0.5);
+
+  --accent-base: var(--p-blue-600);
+  --accent-strong: var(--p-blue-700);
+  --accent-soft: rgba(37, 99, 235, 0.1);
+  --accent-softer: rgba(37, 99, 235, 0.05);
+  --accent-text: var(--p-blue-700);
+  --accent-contrast: #ffffff;
+  --accent-gradient: linear-gradient(135deg, var(--p-blue-600), var(--p-cyan-500));
+
+  /* Darkened so light-theme state colours clear contrast against white
+   * panels. The 400 steps used by the dark themes are too pale here. */
+  --state-success: var(--p-emerald-600);
+  --state-success-soft: rgba(5, 150, 105, 0.12);
+  --state-warning: var(--p-amber-700);
+  --state-warning-soft: rgba(180, 83, 9, 0.12);
+  --state-danger: var(--p-rose-600);
+  --state-danger-soft: rgba(225, 29, 72, 0.12);
+  --state-info: var(--p-cyan-600);
+  --state-info-soft: rgba(8, 145, 178, 0.12);
+  --state-neutral: var(--p-slate-500);
+  --state-neutral-soft: rgba(100, 116, 139, 0.12);
+
+  /* Shadows do the structural work in a light theme, so they are deeper and
+   * more neutral than the dark-theme equivalents. */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 18px 44px rgba(15, 23, 42, 0.14);
+  --shadow-panel: 0 10px 30px rgba(15, 23, 42, 0.1);
+  --shadow-accent-glow: 0 0 0 1px var(--border-accent), 0 6px 16px rgba(37, 99, 235, 0.2);
+  --shadow-accent-glow-strong: 0 0 0 1px var(--accent-base), 0 10px 24px rgba(37, 99, 235, 0.28);
+
+  --canvas-glow: radial-gradient(1100px 480px at 72% -12%, rgba(37, 99, 235, 0.1), transparent 62%),
+    radial-gradient(780px 420px at 8% 106%, rgba(6, 182, 212, 0.08), transparent 60%);
+}
+
+/* ---------------------------------------------------------------------------
+ * 3b. LAYOUT DENSITY MODES
+ * Only density tokens move here. Colours, radii and type *families* are
+ * untouched by density, which is what lets the theme switch and the density
+ * switch be independently reversible.
+ * ------------------------------------------------------------------------ */
+
+[data-genesis-layout='simple'] {
+  --density-font: var(--text-md);
+  --density-row: 36px;
+  --density-row-tight: 28px;
+  --density-gap: var(--space-6);
+  --density-gap-tight: var(--space-4);
+  --density-pad: var(--space-8);
+  --density-pad-tight: var(--space-5);
+  --density-rail: 76px;
+  --density-rail-icon: 22px;
+  --density-side-panel: 300px;
+  --density-avatar-chip: 32px;
+  --density-avatar-md: 64px;
+  --density-avatar-lg: 104px;
+  --density-avatar-xl: 168px;
+  --density-avatar-2xl: 260px;
+  --density-avatar-3xl: 400px;
+  --density-header: 56px;
+  --density-statusbar: 32px;
+}
+
+[data-genesis-layout='standard'] {
+  --density-font: var(--text-base);
+  --density-row: 30px;
+  --density-row-tight: 24px;
+  --density-gap: var(--space-4);
+  --density-gap-tight: var(--space-3);
+  --density-pad: var(--space-6);
+  --density-pad-tight: var(--space-4);
+  --density-rail: 64px;
+  --density-rail-icon: 20px;
+  --density-side-panel: 272px;
+  --density-avatar-chip: 28px;
+  --density-avatar-md: 56px;
+  --density-avatar-lg: 88px;
+  --density-avatar-xl: 140px;
+  --density-avatar-2xl: 220px;
+  --density-avatar-3xl: 340px;
+  --density-header: 48px;
+  --density-statusbar: 30px;
+}
+
+[data-genesis-layout='dense'] {
+  --density-font: var(--text-sm);
+  --density-row: 24px;
+  --density-row-tight: 20px;
+  --density-gap: var(--space-2);
+  --density-gap-tight: var(--space-2);
+  --density-pad: var(--space-4);
+  --density-pad-tight: var(--space-3);
+  --density-rail: 52px;
+  --density-rail-icon: 18px;
+  --density-side-panel: 244px;
+  --density-avatar-chip: 24px;
+  --density-avatar-md: 48px;
+  --density-avatar-lg: 76px;
+  --density-avatar-xl: 120px;
+  --density-avatar-2xl: 188px;
+  --density-avatar-3xl: 288px;
+  --density-header: 42px;
+  --density-statusbar: 26px;
+}
+
+/* Full-screen worker mode. Not a density step: the surrounding chrome is
+ * removed entirely and one worker gets the viewport. Type and the small
+ * avatar steps stay at standard so in-call text remains legible. */
+[data-genesis-layout='focus'] {
+  --density-font: var(--text-base);
+  --density-row: 30px;
+  --density-row-tight: 24px;
+  --density-gap: var(--space-4);
+  --density-gap-tight: var(--space-3);
+  --density-pad: var(--space-6);
+  --density-pad-tight: var(--space-4);
+  --density-rail: 64px;
+  --density-rail-icon: 20px;
+  --density-side-panel: 320px;
+  --density-avatar-chip: 28px;
+  --density-avatar-md: 56px;
+  --density-avatar-lg: 88px;
+  --density-avatar-xl: 160px;
+  --density-avatar-2xl: 300px;
+  --density-avatar-3xl: 460px;
+  --density-header: 48px;
+  --density-statusbar: 30px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. BASE SURFACES
+ * ------------------------------------------------------------------------ */
+
+.gx-root {
+  font-family: var(--font-sans);
+  font-size: var(--density-font);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-normal);
+  color: var(--text-primary);
+  background: var(--surface-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.gx-root *,
+.gx-root *::before,
+.gx-root *::after {
+  box-sizing: border-box;
+}
+
+.gx-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background-image: var(--canvas-glow);
+  background-color: var(--surface-canvas);
+}
+
+.gx-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+
+.gx-scroll {
+  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Scrollbars, themed. Width is a density token so dense mode gets thin bars. */
+.gx-root ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.gx-root ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gx-root ::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.gx-root ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+[data-genesis-layout='dense'] .gx-root ::-webkit-scrollbar,
+.gx-root[data-density='dense'] ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+/* Every interactive element inherits one focus treatment. */
+.gx-root :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* ---------------------------------------------------------------------------
+ * 5. REDUCED MOTION
+ * The decorative avatar loops are pure CSS and stop entirely here rather
+ * than merely slowing down.
+ * ------------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .gx-root *,
+  .gx-root *::before,
+  .gx-root *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
