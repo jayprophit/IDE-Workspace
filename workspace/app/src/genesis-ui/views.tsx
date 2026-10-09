@@ -98,7 +98,10 @@ export function HomeView({
         <Panel title="Team" testId="home-team">
           <TeamStrip
             members={members}
-            activeId={null}
+            /* Home shows the roster for navigation only; it does not own a
+             * selection, so nothing reads as pre-selected here. The shell's
+             * single selection is threaded through when a caller has one. */
+            selectedId={null}
             onSelect={(m) => goTo('worker', m.id)}
             presets={presets}
             mode={mode}

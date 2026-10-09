@@ -67,6 +67,15 @@ describe('theme tokens', () => {
     }
   });
 
+  it('defines --text-on-scrim in every theme (C3 contrast fix)', () => {
+    /* The placeholder label reads on a scrim, not on the page canvas, so it
+     * needs its own token. If a theme lacks it the label silently falls back
+     * to --text-muted and drops below AA. */
+    for (const [i, sel] of THEME_SELECTORS.entries()) {
+      expect(declarationsIn(css, sel).has('--text-on-scrim'), `theme ${THEME_IDS[i]} is missing --text-on-scrim`).toBe(true);
+    }
+  });
+
   it('gives every theme the full set of core roles', () => {
     for (const [i, sel] of THEME_SELECTORS.entries()) {
       const declared = declarationsIn(css, sel);

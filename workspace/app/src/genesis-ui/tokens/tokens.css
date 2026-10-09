@@ -213,6 +213,11 @@
   --text-muted: #6b7c99;
   --text-inverse: var(--p-slate-950);
   --text-accent: var(--p-blue-300);
+  /* Text sitting ON a translucent scrim over a surface (the avatar
+   * placeholder label). Separate from --text-muted because the scrim
+   * changes the effective background, so a colour tuned for the page canvas
+   * is not automatically legible over it. AA (>=4.5:1) in every theme. */
+  --text-on-scrim: #a8b6cf;
 
   /* Borders */
   --border-subtle: rgba(148, 163, 184, 0.1);
@@ -285,6 +290,7 @@
   --text-muted: #7d68a3;
   --text-inverse: #0d0618;
   --text-accent: var(--p-violet-300);
+  --text-on-scrim: #bda9e0;
 
   --border-subtle: rgba(167, 139, 250, 0.1);
   --border-default: rgba(167, 139, 250, 0.2);
@@ -334,6 +340,7 @@
   --text-muted: #9c8261;
   --text-inverse: #120b04;
   --text-accent: var(--p-amber-200);
+  --text-on-scrim: #d6bd97;
 
   --border-subtle: rgba(251, 191, 36, 0.1);
   --border-default: rgba(251, 191, 36, 0.2);
@@ -384,6 +391,7 @@
   --text-muted: #73777f;
   --text-inverse: #101114;
   --text-accent: var(--p-slate-200);
+  --text-on-scrim: #a9adb8;
 
   --border-subtle: rgba(203, 213, 225, 0.08);
   --border-default: rgba(203, 213, 225, 0.14);
@@ -436,6 +444,10 @@
   --text-muted: #7c8ba1;
   --text-inverse: #ffffff;
   --text-accent: var(--p-blue-700);
+  /* Corrected (C3): --text-muted (#7c8ba1) measures 2.14:1 over the frost
+   * scrim composited on surface-sunken, well under AA. Darkened to clear
+   * 4.5:1 on the same background. */
+  --text-on-scrim: #334155;
 
   --border-subtle: rgba(15, 23, 42, 0.07);
   --border-default: rgba(15, 23, 42, 0.13);
@@ -502,6 +514,7 @@
   --density-avatar-2xl: 260px;
   --density-avatar-3xl: 400px;
   --density-header: 56px;
+  --conference-tile-min: 240px;
   --density-statusbar: 32px;
 }
 
@@ -524,6 +537,7 @@
   --density-avatar-3xl: 340px;
   --density-header: 48px;
   --density-statusbar: 30px;
+  --conference-tile-min: 200px;
 }
 
 [data-genesis-layout='dense'] {
@@ -544,6 +558,7 @@
   --density-avatar-2xl: 188px;
   --density-avatar-3xl: 288px;
   --density-header: 42px;
+  --conference-tile-min: 168px;
   --density-statusbar: 26px;
 }
 
@@ -569,6 +584,7 @@
   --density-avatar-3xl: 460px;
   --density-header: 48px;
   --density-statusbar: 30px;
+  --conference-tile-min: 200px;
 }
 
 /* ---------------------------------------------------------------------------

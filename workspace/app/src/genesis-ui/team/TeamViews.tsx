@@ -2,6 +2,8 @@ import type { TeamMember, TeamMode, AvatarPreset, AvatarPresence } from '../type
 import { AvatarChip, AvatarStage } from '../avatar/AvatarStage';
 import { SpecialistCard } from '../avatar/AvatarPicker';
 import { Badge, Button, EmptyState, Notice, Panel, StatusDot, Switch } from '../components/ui';
+import { PresenceAnnouncer } from './PresenceAnnouncer';
+import { usePresenceAnnouncements, useRovingGrid } from './useConferenceA11y';
 
 /**
  * Team surfaces.
@@ -57,13 +59,14 @@ export function statusTone(status: TeamMember['status']): 'success' | 'warning' 
  */
 export function TeamStrip({
   members,
-  activeId,
+  selectedId,
   onSelect,
   presets,
   mode,
 }: {
   members: TeamMember[];
-  activeId: string | null;
+  /** The same selection the conference grid and worker detail use. */
+  selectedId: string | null;
   onSelect: (member: TeamMember) => void;
   presets: Record<string, AvatarPreset>;
   mode: TeamMode;
@@ -86,7 +89,8 @@ export function TeamStrip({
             key={member.id}
             type="button"
             role="listitem"
-            aria-pressed={member.id === activeId}
+            aria-pressed={member.id === selectedId}
+            aria-current={member.id === selectedId ? 'true' : undefined}
             className="gx-teamstrip__member"
             onClick={() => onSelect(member)}
             data-testid={`team-strip-${member.id}`}
@@ -113,36 +117,71 @@ export function TeamStrip({
   );
 }
 
-/** ConferenceGrid - multi-party grid, one tile per member. */
+/**
+ * ConferenceGrid - multi-party grid, one tile per member.
+ *
+ * Selection (`selectedId`) is host-driven: nothing selects itself. The tile
+ * exposes selection semantically via `aria-current` and visually via a token-
+ * driven accent treatment, so it is distinguishable by more than colour.
+ *
+ * Keyboard: roving tabindex. Exactly one tile is in the tab order; arrows move
+ * between tiles and Tab leaves the grid. Presence announcements are emitted
+ * only for host-supplied changes - never inferred.
+ */
 export function ConferenceGrid({
   members,
   presets,
-  onOpenWorker,
+  onSelect,
+  selectedId,
   mode,
 }: {
   members: TeamMember[];
   presets: Record<string, AvatarPreset>;
-  onOpenWorker: (member: TeamMember) => void;
+  /** Selects a worker. Deliberately does NOT navigate: selection has to stay
+   *  visible in the grid, and navigating on click would hide it immediately. */
+  onSelect: (member: TeamMember) => void;
+  selectedId?: string | null;
   mode: TeamMode;
 }) {
+  const grid = useRovingGrid(members.length);
+  const announcements = usePresenceAnnouncements(members);
+
   if (members.length === 0) {
     return <EmptyState title="No participants" note="A conference grid appears once the host reports participants." />;
   }
 
   return (
-    <div className="gx-conference" data-testid="conference-grid">
-      {members.map((member) => {
+    <>
+      <PresenceAnnouncer announcements={announcements} />
+      <div
+        className="gx-conference"
+        data-testid="conference-grid"
+        /* A composite widget: arrows move within it, Tab leaves it. */
+        role="listbox"
+        aria-label="Conference participants"
+        aria-orientation="horizontal"
+      >
+        {members.map((member, index) => {
         const preset = presets[member.avatarId];
         const speaking = member.status === 'active';
+        const selected = selectedId === member.id;
         return (
           <button
             key={member.id}
             type="button"
-            className="gx-tile"
+            role="option"
+            className={`gx-tile${selected ? ' gx-tile--selected' : ''}`}
             data-speaking={speaking}
-            onClick={() => onOpenWorker(member)}
+            data-selected={selected}
+            /* Selection is announced semantically, not only drawn. */
+            aria-selected={selected}
+            aria-current={selected ? 'true' : undefined}
+            ref={grid.registerRef(index)}
+            tabIndex={grid.tabIndexFor(index)}
+            onKeyDown={(e) => grid.onKeyDown(e, index)}
+            onClick={() => onSelect(member)}
             data-testid={`conference-tile-${member.id}`}
-            aria-label={`Open ${member.name}, ${member.role}`}
+            aria-label={`${member.name}, ${member.role}${speaking ? ', speaking' : ''}${selected ? ', selected' : ''}`}
           >
             {!mode.silentMode && preset ? (
               <AvatarStage
@@ -165,14 +204,21 @@ export function ConferenceGrid({
                 <span className="gx-tile__name">{member.name}</span>
                 <span className="gx-tile__role">{member.role}</span>
               </span>
-              <StatusDot tone={statusTone(member.status)} live={member.status !== 'offline' && member.status !== 'idle'} />
+              <span className="gx-tile__status">
+                <StatusDot tone={statusTone(member.status)} live={member.status !== 'offline' && member.status !== 'idle'} />
+                {/* Selection is carried by a text label too, so it never
+                    depends on colour alone to be perceivable. */}
+                {selected && <Badge tone="accent">Selected</Badge>}
+                {speaking && <Badge tone="success">Speaking</Badge>}
+              </span>
             </div>
 
             <span className="gx-tile__task">{member.currentTask || 'No current task'}</span>
           </button>
         );
       })}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -295,7 +341,7 @@ export function TeamPanel({
   specialists,
   summonedIds,
   mode,
-  activeId,
+  selectedId,
   onSelectMember,
   onOpenWorker,
   onSummon,
@@ -308,7 +354,7 @@ export function TeamPanel({
   specialists: AvatarPreset[];
   summonedIds: string[];
   mode: TeamMode;
-  activeId: string | null;
+  selectedId: string | null;
   onSelectMember: (m: TeamMember) => void;
   onOpenWorker: (m: TeamMember) => void;
   onSummon: (p: AvatarPreset) => void;
@@ -327,13 +373,26 @@ export function TeamPanel({
             {mode.observeMode ? ' · observing' : ''}
           </span>
         </div>
-        {activeId && (
-          <Button onClick={() => onOpenWorker(members.find((m) => m.id === activeId) ?? members[0])}>Open worker detail</Button>
+        {selectedId && members.some((m) => m.id === selectedId) && (
+          <Button onClick={() => onOpenWorker(members.find((m) => m.id === selectedId)!)}>Open worker detail</Button>
         )}
       </div>
 
       <Panel title="Conference" bodyClassName="gx-scroll" className="gx-grow" testId="conference-panel">
-        <ConferenceGrid members={members} presets={presets} onOpenWorker={onOpenWorker} mode={mode} />
+        {/*
+          A tile click SELECTS; it does not navigate. Selection has to be
+          visible in the grid to be useful, and navigating away on click would
+          hide it the moment it was made. Drill-down is the explicit
+          "Open worker detail" action below, which is enabled only once a
+          worker is selected.
+        */}
+        <ConferenceGrid
+          members={members}
+          presets={presets}
+          onSelect={onSelectMember}
+          selectedId={selectedId}
+          mode={mode}
+        />
       </Panel>
 
       <div className="gx-grid gx-grid--3">

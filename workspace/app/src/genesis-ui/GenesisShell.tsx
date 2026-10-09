@@ -111,6 +111,16 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
   const stored = useMemo(loadPrefs, []);
 
   const [view, setView] = useState<ViewId>(() => (isViewId(initialView) ? initialView : DEFAULT_VIEW));
+  /* Single selection state for the whole shell.
+   *
+   * Selection and drill-down are the same fact: the worker the user has chosen.
+   * Two separate ids would let the conference highlight one worker while the
+   * detail view showed another, which is exactly the mismatch C1 was raised
+   * against. The team strip, the conference grid and worker focus all read
+   * this one value.
+   *
+   * It stays host-driven UI state. Nothing auto-selects a worker on the user's
+   * behalf, and clearing it is as valid as setting it. */
   const [workerId, setWorkerId] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeId>(() => (isThemeId(stored.theme) ? stored.theme : DEFAULT_THEME));
   const [layout, setLayout] = useState<LayoutModeId>(() => (isLayoutModeId(stored.layout) ? stored.layout : DEFAULT_LAYOUT));
@@ -122,7 +132,6 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
   const [sending, setSending] = useState(false);
   const [openFileId, setOpenFileId] = useState<string | null>(null);
   const [dockTab, setDockTab] = useState('terminal');
-  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(true);
@@ -204,8 +213,8 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
             specialists={SPECIALIST_PRESETS}
             summonedIds={summoned}
             mode={mode}
-            activeId={activeMemberId}
-            onSelectMember={(m) => setActiveMemberId(m.id)}
+            selectedId={workerId}
+            onSelectMember={(m) => setWorkerId(m.id)}
             onOpenWorker={(m) => goTo('worker', m.id)}
             onSummon={summon}
             onModeChange={setMode}
@@ -366,11 +375,8 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
           <div style={{ flexShrink: 0 }}>
             <TeamStrip
               members={members}
-              activeId={activeMemberId}
-              onSelect={(m) => {
-                setActiveMemberId(m.id);
-                goTo('worker', m.id);
-              }}
+              selectedId={workerId}
+              onSelect={(m) => goTo('worker', m.id)}
               presets={PRESET_MAP}
               mode={mode}
             />

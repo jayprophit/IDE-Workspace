@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      C4: an explicit empty data URI. Without this the browser probes
+      /favicon.ico and logs a 404 on every load, which was the only console
+      error in an otherwise clean render. Declaring it is quieter than
+      shipping a placeholder icon nobody asked for.
+    -->
+    <link rel="icon" href="data:," />
     <title>Genesis UI Scaffold</title>
   </head>
   <body style="margin: 0">

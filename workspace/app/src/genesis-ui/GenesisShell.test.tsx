@@ -142,10 +142,11 @@ describe('layout modes', () => {
 
     await user.click(screen.getByTestId('nav-settings'));
     await user.click(screen.getByTestId('layout-focus'));
-    /* `worker` is a drill-down view, not a nav item, so it is reached through
-     * the conference grid rather than the header. */
+    /* `worker` is a drill-down view, not a nav item. A conference tile click
+     * selects; opening the detail is the explicit action that follows. */
     await user.click(screen.getByTestId('nav-team'));
     await user.click(screen.getByTestId(`conference-tile-${FIXTURE_TEAM[0].id}`));
+    await user.click(screen.getByRole('button', { name: /open worker detail/i }));
 
     const focus = screen.getByTestId('genesis-focus');
     expect(focus).toBeInTheDocument();

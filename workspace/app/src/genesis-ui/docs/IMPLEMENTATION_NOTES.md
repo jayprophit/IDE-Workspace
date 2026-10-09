@@ -226,9 +226,21 @@ Its surface list informed the view roster only.
 | Check | Result |
 |---|---|
 | `tsc --noEmit` | clean |
-| `npm test` (existing shell) | **58 passed**, unchanged |
-| `npm test` (genesis-ui) | **62 passed** |
+| `vitest` (pre-existing shell) | **80 passed**, unchanged |
+| `vitest` (genesis-ui) | **124 passed** |
+| **Total** | **204 passed, 15 files** |
 | `vite build` | clean, two entries |
+
+Shell tests, by file: App 22, GenesisTaskBar 10, genesisBridge 22,
+inspection 6, detach 4, state 16 = **80**.
+
+> **Correction (Hermes QA).** The original report in this file claimed "58
+> shell tests". That number was wrong, and the reason is worth recording: the
+> baseline `npm test` run hit a vitest worker-startup failure on
+> `genesisBridge.test.ts`, so its 22 tests never executed. 5 files reported 58
+> passing, and a partial run was reported as a complete one. The corrected
+> figure is 80, from a run where all six shell files executed. No pre-existing
+> test was modified to reach it.
 | Browser: all 7 views | render, no uncaught errors |
 | Browser: 5 themes | 5 distinct canvases, correct `color-scheme` |
 | Browser: 4 densities | distinct font sizes + rail widths |
@@ -236,7 +248,14 @@ Its surface list informed the view roster only.
 | Browser: focus mode | chrome fully removed |
 | Browser: silent mode | avatars 1 → 0 |
 
-Only console message is a favicon 404. `pageErrors`: none.
+The favicon 404 noted in the first pass is resolved (correction C4); a full
+sweep now reports 0 console errors and 0 failed requests.
+
+> **Correction pass (Hermes QA).** C1–C5 are implemented and verified. See
+> [`CORRECTION_PASS.md`](./CORRECTION_PASS.md) for the full record, including
+> the selected-worker state, the conference grid layout fix, the Frost contrast
+> correction with measured WCAG ratios, the favicon fix, and the conference
+> keyboard/live-region work.
 
 ### Pre-existing issue (not caused by this work)
 

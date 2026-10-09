@@ -124,11 +124,15 @@ strong/technical). Presets carry a tagline and a capability list, but no
 system reads them. When a model is connected, these should shape tone and
 verbosity.
 
-### 12. Keyboard and screen-reader pass
+### 12. Keyboard and screen-reader pass — PARTIALLY DONE
 
-Focus rings and ARIA roles are in place, and the rail is landmarked. Not yet
-done: a full roving-tabindex pass over the conference grid, and live-region
-announcements for presence changes.
+Done in the correction pass: roving tabindex over the conference grid
+(arrows/Home/End, Tab leaves the grid, index clamped when the roster changes)
+and a restrained `aria-live="polite"` region for host-reported presence changes.
+
+Still open: a full screen-reader pass beyond the conference grid (file
+explorer, dock tabs, queue rows), and announcements for the non-conference
+surfaces.
 
 ### 13. Responsive audit at real breakpoints
 

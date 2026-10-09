@@ -446,7 +446,10 @@
   font-size: 8px;
   letter-spacing: var(--tracking-widest);
   text-transform: uppercase;
-  color: var(--text-muted);
+  /* --text-on-scrim, not --text-muted: the scrim changes the effective
+   * background, so the page's muted tone is not legible over it (2.14:1 in
+   * frost before correction). */
+  color: var(--text-on-scrim);
   background: var(--surface-scrim);
   padding: 1px 5px;
   border-radius: var(--radius-full);
@@ -728,13 +731,30 @@
   text-transform: uppercase;
 }
 
-/* Conference grid. auto-fit + minmax means the grid reflows on its own at
- * every density instead of needing per-breakpoint column counts. */
+/* Conference grid.
+ *
+ * C2: a CSS grid of `1fr` tracks always fills the full width, so a partial
+ * final row is stranded at the left with a large empty gap beside it. At 7
+ * members on a 6-column layout that produced exactly the lone-card orphan the
+ * review flagged.
+ *
+ * Flexbox wrap fixes it structurally, without any knowledge of the roster
+ * size, because each wrapped LINE is centred independently:
+ *
+ *   - `flex: 1 1 var(--conference-tile-min)` grows cards to fill a full row
+ *     evenly, so complete rows have no ragged gaps.
+ *   - `max-width` caps the growth, so the cards on a short final row widen
+ *     only up to a card-like width instead of stretching into a banner.
+ *   - `justify-content: center` centres that short row.
+ *
+ * Size-agnostic: 1 member centres, 7 members centres the remainder, and 40
+ * members keep flowing. Nothing here is conditioned on a specific count. */
 .gx-conference {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
   gap: var(--density-gap);
-  align-content: start;
   height: 100%;
   padding: var(--density-pad-tight);
   overflow: auto;
@@ -744,6 +764,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: var(--space-4);
   padding: var(--density-pad-tight);
   border-radius: var(--radius-lg);
@@ -756,10 +777,33 @@
   color: inherit;
   font: inherit;
   min-height: 190px;
+  /* Growth is capped so a short final row widens to card-like width and
+     stays centred, rather than becoming a full-bleed banner. */
+  flex: 1 1 var(--conference-tile-min);
+  max-width: calc(var(--conference-tile-min) * 1.5);
   transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .gx-tile:hover { border-color: var(--border-strong); }
+
+/* The avatar must never exceed its tile.
+ *
+ * The stage uses a fixed pixel size step, and the grid column width is
+ * fluid, so at the narrowest columns the circle spilled out of the card and
+ * overlapped its neighbours. Constraining the frame to the column, with the
+ * absolute height, preserves the round shape while guaranteeing it fits:
+ * height is authoritative for the diameter, width can only clamp. */
+.gx-tile .gx-avatar-stage,
+.gx-tile .gx-avatar-stage__frame {
+  max-width: 100%;
+}
+
+.gx-tile .gx-avatar--2xl,
+.gx-tile .gx-avatar--3xl {
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
 
 .gx-tile[data-speaking='true'] {
   border-color: var(--state-success);
@@ -772,6 +816,64 @@
   justify-content: space-between;
   gap: var(--space-4);
   margin-top: auto;
+}
+
+/* Selection (C1). Deliberately more than a colour change: an accent border,
+   a raised surface, and a visible "Selected" badge from the tile body. The
+   badge is what makes it perceivable without relying on colour vision. */
+/* Selection (C1).
+ *
+ * Deliberately more than a colour change, and deliberately layered ON TOP of
+ * the speaking treatment rather than replacing it. A selected speaker has to
+ * look both selected and speaking; if `.gx-tile--selected` won the cascade
+ * outright it would erase the green speaking ring, which is a separate and
+ * still-true piece of host information.
+ *
+ * Cues, in order of how they survive a greyscale print:
+ *   1. the "Selected" badge in the tile body (text, not colour)
+ *   2. a solid accent ring, offset outside the speaking ring
+ *   3. a raised surface
+ *   4. a corner marker dot
+ */
+.gx-tile--selected {
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-accent-glow-strong), var(--shadow-lg);
+}
+
+/* Both states at once: two concentric rings, accent outside success. */
+.gx-tile--selected[data-speaking='true'] {
+  border-color: var(--accent-base);
+  box-shadow:
+    0 0 0 2px var(--accent-base),
+    0 0 0 4px var(--state-success-soft),
+    var(--shadow-lg);
+}
+
+/* Selected but not speaking: the accent ring alone. */
+.gx-tile--selected[data-speaking='false'] {
+  border-color: var(--accent-base);
+  box-shadow: 0 0 0 2px var(--accent-base), var(--shadow-lg);
+}
+
+.gx-tile--selected::after {
+  /* Corner marker: a second, non-colour cue on the tile edge. */
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent-base);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.gx-tile__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .gx-tile__who { display: flex; flex-direction: column; min-width: 0; }
