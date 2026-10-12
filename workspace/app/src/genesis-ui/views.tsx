@@ -13,6 +13,8 @@ import type {
 } from './types';
 import { AvatarStage, AvatarChip } from './avatar/AvatarStage';
 import { AvatarPicker } from './avatar/AvatarPicker';
+import type { RuntimeBinding } from './runtime/runtimeTypes';
+import { ApprovalList, RuntimeBadge, RuntimeNotice } from './runtime/RuntimeViews';
 import { LAYOUT_MODES, THEMES, getLayoutMode, getTheme } from './registry';
 import { Badge, Button, EmptyState, Field, KeyValue, Notice, Panel, Progress, StatusDot, Switch, Tabs } from './components/ui';
 import { TeamPanel, TeamStrip } from './team/TeamViews';
@@ -33,6 +35,13 @@ export interface ViewCommonProps {
   presets: Record<string, AvatarPreset>;
   mode: TeamMode;
   goTo: (view: ViewId, workerId?: string) => void;
+  /**
+   * Runtime binding.
+   *
+   * Views read it for state only. None of them import a Bridge client, so the
+   * fixture/live switch stays entirely inside `GenesisShell`.
+   */
+  runtime: RuntimeBinding;
 }
 
 /* ---------------------------------------------------------------------------
@@ -54,6 +63,7 @@ export function HomeView({
   mode,
   goTo,
   tasks,
+  runtime,
 }: ViewCommonProps & { tasks: TaskSummary[] }) {
   const greeting = 'Same AI. A different view.';
   const activeWorkers = members.filter((m) => m.status === 'active' || m.status === 'reviewing').length;
@@ -108,15 +118,40 @@ export function HomeView({
           />
         </Panel>
 
-        <Panel title="Activity" testId="home-activity">
+        <Panel
+          title="Activity"
+          actions={<RuntimeBadge runtime={runtime} />}
+          testId="home-activity"
+        >
           <div className="gx-grid gx-grid--4">
             <Stat label="Workers" value={String(members.length)} />
             <Stat label="Active" value={String(activeWorkers)} />
             <Stat label="Tasks" value={String(tasks.length)} />
             <Stat label="Mode" value={mode.silentMode ? 'Silent' : 'Full'} />
           </div>
+
+          {/*
+            Approvals. Gated entirely on `decidable`, which mirrors the
+            Bridge's own `interactive` flag. A session without a decision
+            channel renders the request and an explanation, never buttons -
+            the UI must not offer a human a decision the runtime refuses.
+          */}
+          {runtime.snapshot.approvals.length > 0 && (
+            <div className="gx-col" style={{ gap: 'var(--space-3)', marginTop: 'var(--space-5)' }}>
+              <span className="gx-label">Approvals</span>
+              <ApprovalList runtime={runtime} />
+            </div>
+          )}
+
           {tasks.length === 0 ? (
-            <EmptyState title="No tasks" note="Nothing has been submitted in this session." />
+            <EmptyState
+              title="No tasks"
+              note={
+                runtime.snapshot.source === 'agent_bridge' && !runtime.snapshot.fresh
+                  ? 'The runtime is not connected, so no task state is shown. Nothing is invented here.'
+                  : 'Nothing has been submitted in this session.'
+              }
+            />
           ) : (
             <div className="gx-col" style={{ gap: 'var(--space-3)', marginTop: 'var(--space-5)' }}>
               {tasks.slice(0, 4).map((t) => (
@@ -131,14 +166,26 @@ export function HomeView({
           )}
         </Panel>
 
-        <Panel title="Appearance" testId="home-appearance">
-          <div className="gx-col" style={{ gap: 'var(--space-4)' }}>
-            <span className="gx-hint">Themes and layout density apply instantly across every view.</span>
-            <Button onClick={() => goTo('settings')} testId="home-open-settings">
-              Open appearance settings
-            </Button>
-          </div>
-        </Panel>
+        <Panel
+        title="Runtime"
+        actions={<RuntimeBadge runtime={runtime} />}
+        testId="home-runtime"
+      >
+        <div className="gx-col" style={{ gap: 'var(--space-4)' }}>
+          <RuntimeNotice runtime={runtime}>
+            <span className="gx-hint">
+              Connected to Agent Bridge. Status, tasks and approvals come from the runtime.
+            </span>
+          </RuntimeNotice>
+          {/* Switching to a live runtime is an explicit mode change, so it is
+              presented as a choice in Settings rather than as a button that
+              looks like it already did the thing. */}
+          <Button onClick={() => goTo('settings')} testId="home-runtime-settings">
+            Runtime settings
+          </Button>
+          {runtime.snapshot.approvals.length > 0 && <ApprovalList runtime={runtime} />}
+        </div>
+      </Panel>
       </div>
     </div>
   );
@@ -159,9 +206,17 @@ function Stat({ label, value }: { label: string; value: string }) {
  * Chat
  * ------------------------------------------------------------------------ */
 
-export function ChatView({ mainAvatar, mainInstance, mode, messages, onSend, sending }: ViewCommonProps & {
+export function ChatView({
+  mainAvatar,
+  mainInstance,
+  mode,
+  messages,
+  onSend,
+  sending,
+  runtime,
+}: ViewCommonProps & {
   messages: ChatMessage[];
-  onSend: (text: string) => void;
+  onSend: (text: string) => void | Promise<void>;
   sending: boolean;
 }) {
   const [draft, setDraft] = useState('');
@@ -187,6 +242,12 @@ export function ChatView({ mainAvatar, mainInstance, mode, messages, onSend, sen
       </div>
 
       <div className="gx-chat__thread">
+        {/* The transcript source is stated, not implied. */}
+        <div style={{ padding: 'var(--density-pad-tight) var(--density-pad-tight) 0' }}>
+          <RuntimeNotice runtime={runtime}>
+            <div />
+          </RuntimeNotice>
+        </div>
         <div className="gx-thread" data-testid="chat-thread">
           {messages.length === 0 ? (
             <EmptyState title="No messages yet" note="Sent messages appear here. Nothing is pre-filled." />
@@ -609,6 +670,7 @@ export function SettingsView({
   onModeChange,
   rendererId,
   onRenderer,
+  runtime,
 }: ViewCommonProps & {
   theme: string;
   onTheme: (id: string) => void;
@@ -619,13 +681,14 @@ export function SettingsView({
   onModeChange: (m: TeamMode) => void;
   rendererId: string;
 }) {
-  const [tab, setTab] = useState('appearance');
+  const [tab, setTab] = useState('runtime');
 
   return (
     <div className="gx-settings">
       <Panel variant="solid" testId="settings-nav">
         <div className="gx-col" style={{ gap: 'var(--space-2)' }}>
           {[
+            { id: 'runtime', label: 'Runtime' },
             { id: 'appearance', label: 'Appearance' },
             { id: 'avatar', label: 'Avatar' },
             { id: 'team', label: 'Team' },
@@ -646,6 +709,67 @@ export function SettingsView({
       </Panel>
 
       <Panel className="gx-scroll" testId="settings-body">
+        {tab === 'runtime' && (
+          <div className="gx-section">
+            <div className="gx-section__head">
+              <span className="gx-section__title">Agent Bridge connection</span>
+              <span className="gx-section__desc">
+                Where status, tasks and approvals come from. Fixture mode never touches the network and is labelled
+                everywhere it appears.
+              </span>
+            </div>
+
+            <RuntimeNotice runtime={runtime}>
+              <div />
+            </RuntimeNotice>
+
+            <div className="gx-row gx-wrap">
+              <span className="gx-label">Source</span>
+              <span className="gx-badge gx-badge--info" data-testid="settings-runtime-source">
+                {runtime.snapshot.source === 'fixture' ? 'fixture (sample data)' : 'agent bridge (live)'}
+              </span>
+            </div>
+
+            <div className="gx-row gx-wrap">
+              <Button
+                onClick={() => runtime.connect()}
+                disabled={runtime.snapshot.source === 'fixture' || runtime.snapshot.connection === 'connected'}
+                testId="runtime-connect"
+              >
+                Connect
+              </Button>
+              <Button
+                onClick={() => runtime.disconnect()}
+                disabled={runtime.snapshot.source === 'fixture' || runtime.snapshot.connection === 'disconnected'}
+                testId="runtime-disconnect"
+              >
+                Disconnect
+              </Button>
+              {runtime.busy && <span className="gx-hint">working…</span>}
+            </div>
+
+            <KeyValue
+              items={[
+                ['connection', runtime.snapshot.connection],
+                ['session', runtime.snapshot.sessionId || 'none'],
+                ['session status', runtime.snapshot.sessionStatus],
+                ['decision channel', runtime.snapshot.interactive ? 'interactive' : 'none'],
+                ['base url', runtime.snapshot.baseUrl || 'not set'],
+                ['workers', String(runtime.snapshot.workers.length)],
+                ['tasks', String(runtime.snapshot.tasks.length)],
+                ['approvals', String(runtime.snapshot.approvals.length)],
+              ]}
+            />
+
+            {runtime.snapshot.approvals.length > 0 && (
+              <div className="gx-col" style={{ gap: 'var(--space-3)' }}>
+                <span className="gx-label">Pending approvals</span>
+                <ApprovalList runtime={runtime} />
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'appearance' && (
           <>
             <div className="gx-section">

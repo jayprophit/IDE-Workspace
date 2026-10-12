@@ -137,6 +137,7 @@ describe('C1 - selected worker state', () => {
      * the highlight against. What must hold is that the worker focus surface
      * resolves to the selected worker and not to a default. */
     await user.click(screen.getByTestId('nav-settings'));
+    await user.click(screen.getByTestId('settings-tab-appearance'));
     await user.click(screen.getByTestId('layout-focus'));
     await user.click(screen.getByTestId('nav-team'));
     await openWorkerDetail(user);

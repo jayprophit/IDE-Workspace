@@ -6,8 +6,11 @@ import { AvatarStage } from './avatar/AvatarStage';
 import { Badge, Notice } from './components/ui';
 import { TeamPanel, TeamStrip } from './team/TeamViews';
 import { CallsView, ChatView, HomeView, SettingsView, WorkView, WorkerDetailView } from './views';
-import { DEFAULT_MAIN_AVATAR_ID, DEFAULT_TEAM_MODE, FIXTURE_TEAM, IS_FIXTURE, PRESET_MAP, SPECIALIST_PRESETS, resolvePreset } from './fixtures';
+import { DEFAULT_MAIN_AVATAR_ID, DEFAULT_TEAM_MODE, PRESET_MAP, SPECIALIST_PRESETS, resolvePreset } from './fixtures';
 import { PLACEHOLDER_RENDERER_ID } from './avatar/renderers';
+import { BRIDGE_DEFAULT_BASE } from '../bridge';
+import { useGenesisRuntime } from './runtime/useGenesisRuntime';
+import type { GenesisClient, RuntimeBinding, RuntimeConnection, RuntimeSnapshot, RuntimeSource } from './runtime/runtimeTypes';
 import './tokens/tokens.css';
 import './tokens/components.css';
 
@@ -105,10 +108,63 @@ export interface GenesisShellProps {
   members?: TeamMember[];
   messages?: ChatMessage[];
   initialView?: ViewId;
+  /**
+   * Runtime binding (P0-A).
+   *
+   * `fixture` never touches the network and is the default, so the scaffold
+   * still runs standalone. `agent_bridge` subscribes to real sessions through
+   * `useGenesisRuntime` — the single integration point. Views receive the
+   * result as props and never import a client, so switching modes changes
+   * where values come from and nothing else.
+   */
+  runtimeSource?: RuntimeSource;
+  /** Agent Bridge base URL. Only read in `agent_bridge` mode. */
+  bridgeBaseUrl?: string;
+  workspace?: string;
+  /** Ask the Bridge for a human approval channel for the session. */
+  runtimeInteractive?: boolean;
+  /** Injected in tests; defaults to the real genesisBridge client. */
+  runtimeClient?: GenesisClient;
 }
 
-export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages = FIXTURE_MESSAGES, initialView = DEFAULT_VIEW }: GenesisShellProps) {
+export function GenesisShell({
+  members: membersOverride,
+  messages: messagesOverride,
+  initialView = DEFAULT_VIEW,
+  runtimeSource = 'fixture',
+  bridgeBaseUrl = BRIDGE_DEFAULT_BASE,
+  workspace = 'workspace/app',
+  runtimeInteractive = false,
+  runtimeClient,
+}: GenesisShellProps) {
   const stored = useMemo(loadPrefs, []);
+
+  /* Debug/embedding aid, also what the live-render QA drives. Lets a harness
+   * or a future settings toggle opt a scaffold running in fixture mode into
+   * the real Bridge without a rebuild. Absent in normal use, so the default
+   * stays fixture and nothing reaches the network unless explicitly asked. */
+  const liveOverride = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const flag = (window as unknown as Record<string, unknown>).__GENESIS_RUNTIME_SOURCE__;
+    return flag === 'agent_bridge' ? 'agent_bridge' : null;
+  }, []);
+  const effectiveSource = liveOverride ?? runtimeSource;
+
+  const runtime = useGenesisRuntime({
+    source: effectiveSource,
+    baseUrl: bridgeBaseUrl,
+    workspace,
+    interactive: runtimeInteractive,
+    client: runtimeClient,
+  });
+
+  const snap = runtime.snapshot;
+
+  /* Explicit prop overrides win, so tests and embedding stay deterministic.
+   * Otherwise the binding is the single source of truth for members/tasks/
+   * messages in live mode. */
+  const members = membersOverride ?? snap.workers;
+  const tasks = snap.tasks;
 
   const [view, setView] = useState<ViewId>(() => (isViewId(initialView) ? initialView : DEFAULT_VIEW));
   /* Single selection state for the whole shell.
@@ -128,8 +184,15 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
   const [rendererId, setRendererId] = useState<string>(() => (typeof stored.renderer === 'string' ? stored.renderer : PLACEHOLDER_RENDERER_ID));
   const [mode, setMode] = useState<TeamMode>(() => ({ ...DEFAULT_TEAM_MODE, silentMode: stored.silent === true }));
   const [summoned, setSummoned] = useState<string[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  /* Transcript. Seeded from an explicit override when given, otherwise owned
+   * entirely by the runtime binding. Live mode appends the user's own message
+   * locally and lets the runtime supply everything else. */
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>(messagesOverride ?? []);
   const [sending, setSending] = useState(false);
+  const messages = useMemo(
+    () => (messagesOverride ? messagesOverride : [...snap.messages, ...localMessages]),
+    [localMessages, messagesOverride, snap.messages],
+  );
   const [openFileId, setOpenFileId] = useState<string | null>(null);
   const [dockTab, setDockTab] = useState('terminal');
   const [calls, setCalls] = useState<CallRecord[]>([]);
@@ -156,22 +219,35 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
   }, []);
 
   const sendMessage = useCallback(
-    (text: string) => {
+    async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
       setSending(true);
-      const msg: ChatMessage = {
+
+      /* The user's own message is always local and immediate. */
+      const echo: ChatMessage = {
         id: `local-${Date.now()}`,
         author: 'user',
         authorName: 'You',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         body: trimmed,
       };
-      /* Local echo only. No request is sent - the scaffold has no backend. */
-      setMessages((prev) => [...prev, msg]);
-      setSending(false);
+      setLocalMessages((prev) => [...prev, echo]);
+
+      try {
+        if (runtimeSource === 'fixture') {
+          /* Fixture mode has no backend and says so. The echo above stands on
+           * its own; nothing pretends a run happened. */
+          return;
+        }
+        /* Live mode: submit through the Bridge. The runtime decides what
+         * actually happens, and the next poll brings back what it reported. */
+        await runtime.submit(trimmed);
+      } finally {
+        setSending(false);
+      }
     },
-    [],
+    [runtime, runtimeSource],
   );
 
   const startCall = useCallback((member: TeamMember, kind: 'voice' | 'video') => {
@@ -195,16 +271,30 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
     setSummoned((prev) => (prev.includes(preset.id) ? prev : [...prev, preset.id]));
   }, []);
 
-  const common = { mainAvatar, mainInstance, members, presets: PRESET_MAP, mode, goTo };
+  const common = { mainAvatar, mainInstance, members, presets: PRESET_MAP, mode, goTo, runtime };
 
   const body = (() => {
     switch (view) {
       case 'home':
-        return <HomeView {...common} tasks={FIXTURE_TASKS} />;
+        return <HomeView {...common} tasks={tasks} runtime={runtime} />;
       case 'chat':
-        return <ChatView {...common} messages={messages} onSend={sendMessage} sending={sending} />;
+        return <ChatView {...common} messages={messages} onSend={sendMessage} sending={sending} runtime={runtime} />;
       case 'work':
-        return <WorkView {...common} files={FIXTURE_FILES} terminal={FIXTURE_TERMINAL} openFileId={openFileId} onOpenFile={setOpenFileId} dockTab={dockTab} onDockTab={setDockTab} />;
+        /* Files and terminal stay fixture-backed: the Bridge's workspace and
+           terminal clients already exist in `bridge.ts` and are wired into the
+           outer shell, but routing them through genesis-ui is a separate unit.
+           Saying so beats implying these files are live. */
+        return (
+          <WorkView
+            {...common}
+            files={FIXTURE_FILES}
+            terminal={FIXTURE_TERMINAL}
+            openFileId={openFileId}
+            onOpenFile={setOpenFileId}
+            dockTab={dockTab}
+            onDockTab={setDockTab}
+          />
+        );
       case 'team':
         return (
           <TeamPanel
@@ -218,8 +308,8 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
             onOpenWorker={(m) => goTo('worker', m.id)}
             onSummon={summon}
             onModeChange={setMode}
-            onEndSession={() => undefined}
-            canEnd={false}
+            onEndSession={runtime.disconnect}
+            canEnd={snap.connection === 'connected'}
           />
         );
       case 'worker':
@@ -291,7 +381,11 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
       className="gx-root"
       data-genesis-theme={theme}
       data-genesis-layout={layout}
-      data-fixture={IS_FIXTURE ? 'true' : 'false'}
+      /* Honest state, readable from the DOM: which mode, which connection,
+         and whether the values on screen are current. */
+      data-runtime-source={snap.source}
+      data-runtime-connection={snap.connection}
+      data-runtime-fresh={snap.fresh ? 'true' : 'false'}
       data-renderer={rendererId}
       data-testid="genesis-shell"
     >
@@ -384,16 +478,21 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
         )}
 
         <footer className="gx-statusbar">
-          <span className="gx-statusbar__item">
-            <span className="gx-dot gx-dot--success" aria-hidden="true" />
-            scaffold online
+          {/*
+            The runtime line is the honest one. In fixture mode it says
+            fixture and the dot is neutral, because nothing is connected. In
+            live mode it reports the real connection state and turns amber when
+            values are stale. It never shows green unless the Bridge answered.
+          */}
+          <span className="gx-statusbar__item" data-testid="status-runtime">
+            <span className={`gx-dot gx-dot--${runtimeDot(snap.connection)}`} aria-hidden="true" />
+            runtime {runtimeLabel(snap)}
           </span>
           <span className="gx-statusbar__item">theme {theme}</span>
           <span className="gx-statusbar__item">layout {layout}</span>
           <span className="gx-statusbar__item" data-testid="status-renderer">
             renderer {rendererId} (not live)
           </span>
-          {IS_FIXTURE && <span className="gx-statusbar__item gx-badge--warning">fixture data</span>}
           <span className="gx-statusbar__spacer" />
           <span className="gx-statusbar__item">workers {members.length}</span>
           <span className="gx-statusbar__item">{mode.silentMode ? 'silent' : 'full'}</span>
@@ -401,6 +500,48 @@ export function GenesisShell({ members = FIXTURE_TEAM, messages: initialMessages
       </div>
     </div>
   );
+}
+
+/* ---------------------------------------------------------------------------
+ * Runtime status presentation
+ *
+ * Small pure functions so the mapping is testable without rendering, and so
+ * "green" can only ever be reached through a real connected state.
+ * ------------------------------------------------------------------------ */
+
+/** Green is reserved for a live connection the Bridge actually confirmed. */
+export function runtimeDot(connection: RuntimeConnection): 'success' | 'warning' | 'danger' | 'none' {
+  switch (connection) {
+    case 'connected':
+      return 'success';
+    case 'connecting':
+    case 'reconnecting':
+      return 'warning';
+    case 'error':
+      return 'danger';
+    case 'disconnected':
+    default:
+      return 'none';
+  }
+}
+
+export function runtimeLabel(snap: RuntimeSnapshot): string {
+  if (snap.source === 'fixture') return 'fixture (not connected)';
+  switch (snap.connection) {
+    case 'connected':
+      /* Connected but the data is a retained snapshot, e.g. the last poll
+       * failed after a good one. Say so rather than implying liveness. */
+      return snap.fresh ? `agent bridge: ${snap.sessionStatus || 'connected'}` : 'agent bridge: connected (stale)';
+    case 'connecting':
+      return 'agent bridge: connecting';
+    case 'reconnecting':
+      return 'agent bridge: reconnecting';
+    case 'error':
+      return snap.error ? `agent bridge: error - ${snap.error}` : 'agent bridge: error';
+    case 'disconnected':
+    default:
+      return snap.error ? `agent bridge: disconnected - ${snap.error}` : 'agent bridge: disconnected';
+  }
 }
 
 export default GenesisShell;

@@ -19,11 +19,25 @@ beforeEach(() => {
 });
 
 describe('shell renders', () => {
-  it('shows the avatar-first shell with a fixture label and honest renderer status', () => {
+  it('shows the avatar-first shell with honest renderer and runtime status', () => {
     render(<GenesisShell />);
     expect(screen.getByTestId('genesis-shell')).toBeInTheDocument();
     expect(screen.getByTestId('status-renderer')).toHaveTextContent('not live');
-    expect(screen.getByText('fixture data')).toBeInTheDocument();
+    /* Fixture mode is stated, not implied, and it must not read as connected.
+       This replaced a flat "fixture data" label after the runtime binding. */
+    expect(screen.getByTestId('status-runtime')).toHaveTextContent('fixture');
+    expect(screen.getByTestId('status-runtime')).toHaveTextContent('not connected');
+    expect(screen.getByTestId('genesis-shell')).toHaveAttribute('data-runtime-source', 'fixture');
+    expect(screen.getByTestId('genesis-shell')).toHaveAttribute('data-runtime-connection', 'disconnected');
+  });
+
+  it('never shows a live runtime state in fixture mode', () => {
+    render(<GenesisShell />);
+    /* The strongest form of the fixture/live distinction: the attributes are
+       readable from the DOM, so no surface can quietly claim otherwise. */
+    const shell = screen.getByTestId('genesis-shell');
+    expect(shell.getAttribute('data-runtime-source')).not.toBe('agent_bridge');
+    expect(shell.getAttribute('data-runtime-fresh')).toBe('false');
   });
 
   it('marks every avatar frame as non-live', () => {
@@ -79,10 +93,12 @@ describe('navigation', () => {
 });
 
 describe('theme switching', () => {
-  it('applies all five themes and persists the choice', async () => {
+it('applies all five themes and persists the choice', async () => {
     const user = userEvent.setup();
     render(<GenesisShell />);
     await user.click(screen.getByTestId('nav-settings'));
+    /* Runtime is the default Settings tab since the binding landed. */
+    await user.click(screen.getByTestId('settings-tab-appearance'));
 
     for (const id of ['aurora', 'ember', 'graphite', 'frost', 'abyss']) {
       await user.click(screen.getByTestId(`theme-${id}`));
@@ -96,6 +112,8 @@ describe('theme switching', () => {
     const user = userEvent.setup();
     render(<GenesisShell />);
     await user.click(screen.getByTestId('nav-settings'));
+
+    await user.click(screen.getByTestId('settings-tab-appearance'));
 
     await user.click(screen.getByTestId('theme-ember'));
     await user.click(screen.getByTestId('layout-dense'));
@@ -125,10 +143,11 @@ describe('theme switching', () => {
 });
 
 describe('layout modes', () => {
-  it('applies every density and keeps the shell mounted', async () => {
+it('applies every density and keeps the shell mounted', async () => {
     const user = userEvent.setup();
     render(<GenesisShell />);
     await user.click(screen.getByTestId('nav-settings'));
+    await user.click(screen.getByTestId('settings-tab-appearance'));
 
     for (const id of ['simple', 'dense', 'standard']) {
       await user.click(screen.getByTestId(`layout-${id}`));
@@ -140,7 +159,8 @@ describe('layout modes', () => {
     const user = userEvent.setup();
     render(<GenesisShell />);
 
-    await user.click(screen.getByTestId('nav-settings'));
+await user.click(screen.getByTestId('nav-settings'));
+    await user.click(screen.getByTestId('settings-tab-appearance'));
     await user.click(screen.getByTestId('layout-focus'));
     /* `worker` is a drill-down view, not a nav item. A conference tile click
      * selects; opening the detail is the explicit action that follows. */
