@@ -497,6 +497,11 @@
 .sv-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .sv-btn--primary { background: var(--accent-base); border-color: transparent; color: var(--accent-contrast); }
 
+/* --- roster / control surface (§17.J / §18) --------------------------------- */
+.sv-small { font-size: var(--sv-text-xs); color: var(--text-secondary); }
+.sv-table tr.sv-row--selected { background: var(--accent-softer); }
+.sv-table tr.sv-row--selected td { font-weight: 600; }
+
 /* --- notices -------------------------------------------------------------- */
 
 .sv-notice {

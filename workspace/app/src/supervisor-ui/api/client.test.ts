@@ -7,11 +7,13 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
+  continueWorker,
   countOf,
   errorFactOf,
   fetchSupervisorEvents,
   fetchSupervisorHealth,
   fetchSupervisorState,
+  fetchWorkerDetail,
   factsIn,
   isSourceFact,
   leafFacts,
@@ -219,6 +221,70 @@ describe('health', () => {
     const res = await fetchSupervisorState('http://x');
     expect(res.ok).toBe(false);
     expect(res.snapshot).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('§17.J / §18 control surface client', () => {
+  it('reads worker detail faithfully', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      ok: true, worker_id: 'codex-primary', application: 'codex',
+      role: 'mat-worker', verdict: 'RUNNING',
+      evidence: ['newest rollout 120s old'],
+      quota: { pool: 'five_hour', reset_at: '14:59' },
+    })));
+    const d = await fetchWorkerDetail('codex-primary', '/api');
+    expect(d.ok).toBe(true);
+    expect(d.worker_id).toBe('codex-primary');
+    expect(d.verdict).toBe('RUNNING');
+    expect(d.quota?.reset_at).toBe('14:59');
+    expect(d.evidence[0]).toContain('rollout');
+    vi.unstubAllGlobals();
+  });
+
+  it('reports an unknown worker as unknown, not empty', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      ok: false, worker_id: 'nope', error_code: 'UNKNOWN_WORKER',
+    })));
+    const d = await fetchWorkerDetail('nope', '/api');
+    expect(d.ok).toBe(false);
+    expect(d.error_code).toBe('UNKNOWN_WORKER');
+    vi.unstubAllGlobals();
+  });
+
+  it('reports an unreachable backend as UNREACHABLE, never delivered', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('refused'); }));
+    const d = await fetchWorkerDetail('x', '/api');
+    expect(d.ok).toBe(false);
+    expect(d.error_code).toBe('UNREACHABLE');
+    vi.unstubAllGlobals();
+  });
+
+  it('continue posts and reports the real delivery result', async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url: String(url), method: init.method ?? 'GET' });
+      return jsonResponse({
+        ok: true, worker_id: 'ollama-local', delivered: true,
+        channel: 'ollama-api', evidence: ['LOCAL-WORKER-OK'],
+      });
+    }));
+    const r = await continueWorker('ollama-local', '/api');
+    expect(r.delivered).toBe(true);
+    expect(r.channel).toBe('ollama-api');
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].url).toContain('/v1/supervisor/worker/ollama-local/continue');
+    vi.unstubAllGlobals();
+  });
+
+  it('continue that was not delivered reports delivered=false honestly', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      ok: true, worker_id: 'codex-primary', delivered: false,
+      channel: 'codex-exec-resume', evidence: ['usage limit'],
+    })));
+    const r = await continueWorker('codex-primary', '/api');
+    expect(r.ok).toBe(true);
+    expect(r.delivered).toBe(false);   // the adapter said so; not fabricated
     vi.unstubAllGlobals();
   });
 });

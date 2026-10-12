@@ -74,6 +74,38 @@ export interface SupervisorStateResponse {
   detail?: string;
 }
 
+/* ---------------------------------------------------------------------------
+ * §17.J / §18 control surface
+ * ------------------------------------------------------------------------ */
+
+/** One worker's live detail from GET /v1/supervisor/worker/<id>. */
+export interface WorkerDetail {
+  ok: boolean;
+  worker_id: string;
+  application?: string;
+  role?: string;
+  /** Live verdict from the worker's real adapter (RUNNING/IDLE/...). */
+  verdict?: string;
+  evidence: string[];
+  quota?: Record<string, unknown>;
+  current_task?: Record<string, unknown>;
+  record?: Record<string, unknown>;
+  error_code?: string;
+  detail?: string;
+}
+
+/** Result of POST /v1/supervisor/worker/<id>/continue. */
+export interface WorkerContinueResult {
+  ok: boolean;
+  worker_id: string;
+  /** True only when the real adapter channel actually delivered (§15). */
+  delivered: boolean;
+  channel?: string;
+  evidence: string[];
+  error_code?: string;
+  detail?: string;
+}
+
 /** One event from the SSE ring. `event` is the inner bus payload. */
 export interface SupervisorEvent {
   seq: number;
@@ -133,6 +165,8 @@ export interface ResourcesFacts {
 export interface SupervisionFacts {
   workers_total?: SourceFact;
   workers_by_status?: SourceFact;
+  /** §17.J: the live per-worker roster (array of worker rows). */
+  workers?: SourceFact;
   handoffs_pending?: SourceFact;
   handoffs_total?: SourceFact;
   gaps_open?: SourceFact;

@@ -86,8 +86,12 @@ describe('single network boundary', () => {
     expect(src).toContain('/v1/supervisor/health');
     expect(src).toContain('/v1/supervisor/state');
     expect(src).toContain('/v1/supervisor/events');
-    /* No invented parallel endpoints. */
-    expect(src).not.toMatch(/\/v1\/supervisor\/(?!health|state|events)/);
+    /* §17.J / §18 control surface: worker detail (GET) + continue (POST).
+       These are documented, real routes on the supervisor API — not
+       invented parallel endpoints. */
+    expect(src).toContain('/v1/supervisor/worker/');
+    /* No invented parallel endpoints beyond the documented set. */
+    expect(src).not.toMatch(/\/v1\/supervisor\/(?!health|state|events|worker)/);
   });
 
   it('defaults to a same-origin path, not a cross-origin loopback URL', () => {

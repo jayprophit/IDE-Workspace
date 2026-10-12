@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { isSourceFact, leafFacts, sectionState } from '../api/client';
 import { SECTION_IDS, SECTION_LABEL, type RepositoryFacts, type SectionId, type SourceFact, type SourceState, type SupervisorSnapshot } from '../api/types';
 import { Card, EmptyState, FactChip, FactRow, Notice, StatTile, formatAge } from './fact';
+import { WorkerRoster } from './roster';
 
 /**
  * Section views.
@@ -394,6 +395,10 @@ export function SupervisionSection({ snapshot }: { snapshot: SupervisorSnapshot 
                 ))}
               </div>
             )}
+
+            {/* §17.J / §18: the live worker roster — click a worker to inspect
+                its detail and issue a continue through its real channel. */}
+            <WorkerRoster section={s} />
 
             {gaps && <FactRow name="gaps_by_severity" fact={gaps} testId="sup-gaps-fact" />}
             {gapRows && (

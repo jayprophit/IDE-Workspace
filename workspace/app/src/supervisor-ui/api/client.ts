@@ -7,6 +7,8 @@ import {
   type SupervisorHealth,
   type SupervisorSnapshot,
   type SupervisorStateResponse,
+  type WorkerContinueResult,
+  type WorkerDetail,
 } from './types';
 
 /**
@@ -157,6 +159,73 @@ export async function fetchSupervisorState(
     return { ok: payload.ok === true, snapshot: parseSnapshot(payload.snapshot) };
   } catch (e) {
     return { ok: false, error_code: 'UNREACHABLE', detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * §17.J worker detail / §18 continue — the control surface
+ *
+ * All network I/O for these stays in this file (bounds.test.ts forbids a
+ * fetch outside api/client.ts). detail is a GET; continue is a POST through
+ * the loopback proxy to the REAL adapter channel — the API never opens a
+ * second channel to a worker.
+ * ------------------------------------------------------------------------ */
+
+export async function fetchWorkerDetail(
+  workerId: string,
+  baseUrl: string = DEFAULT_BASE,
+  timeoutMs = 10000,
+): Promise<WorkerDetail> {
+  baseUrl = resolveBase(baseUrl);
+  try {
+    const payload = asRecord(await getJson(apiUrl(baseUrl, `/v1/supervisor/worker/${encodeURIComponent(workerId)}`), timeoutMs));
+    if (!payload) throw new Error('worker detail payload is not an object');
+    return {
+      ok: payload.ok === true,
+      worker_id: str(payload.worker_id),
+      application: typeof payload.application === 'string' ? payload.application : undefined,
+      role: typeof payload.role === 'string' ? payload.role : undefined,
+      verdict: typeof payload.verdict === 'string' ? payload.verdict : undefined,
+      evidence: Array.isArray(payload.evidence) ? (payload.evidence as unknown[]).map(String) : [],
+      quota: asRecord(payload.quota) ?? undefined,
+      current_task: asRecord(payload.current_task) ?? undefined,
+      record: asRecord(payload.record) ?? undefined,
+      error_code: typeof payload.error_code === 'string' ? payload.error_code : undefined,
+    };
+  } catch (e) {
+    return { ok: false, worker_id: workerId, error_code: 'UNREACHABLE', evidence: [], detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function continueWorker(
+  workerId: string,
+  baseUrl: string = DEFAULT_BASE,
+  timeoutMs = 10000 * 6,
+): Promise<WorkerContinueResult> {
+  baseUrl = resolveBase(baseUrl);
+  const ctrl = new AbortController();
+  const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const resp = await fetch(apiUrl(baseUrl, `/v1/supervisor/worker/${encodeURIComponent(workerId)}/continue`), {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: '{}',
+    });
+    const payload = asRecord(await resp.json());
+    if (!payload) throw new Error('continue payload is not an object');
+    return {
+      ok: payload.ok === true,
+      worker_id: str(payload.worker_id),
+      delivered: payload.delivered === true,
+      channel: typeof payload.channel === 'string' ? payload.channel : undefined,
+      evidence: Array.isArray(payload.evidence) ? (payload.evidence as unknown[]).map(String) : [],
+      error_code: typeof payload.error_code === 'string' ? payload.error_code : undefined,
+    };
+  } catch (e) {
+    return { ok: false, worker_id: workerId, delivered: false, evidence: [], error_code: 'UNREACHABLE', detail: e instanceof Error ? e.message : String(e) };
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 
