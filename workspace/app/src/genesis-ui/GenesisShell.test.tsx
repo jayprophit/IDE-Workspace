@@ -23,7 +23,9 @@ describe('shell renders', () => {
     render(<GenesisShell />);
     expect(screen.getByTestId('genesis-shell')).toBeInTheDocument();
     expect(screen.getByTestId('status-renderer')).toHaveTextContent('not live');
-    expect(screen.getByText('fixture data')).toBeInTheDocument();
+    /* P0-A binding: fixture mode is labelled honestly as not connected,
+     * never dressed up as live data. The runtime status line carries it. */
+    expect(screen.getByTestId('status-runtime')).toHaveTextContent('fixture (not connected)');
   });
 
   it('marks every avatar frame as non-live', () => {

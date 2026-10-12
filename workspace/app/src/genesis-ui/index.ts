@@ -9,7 +9,7 @@
  * embodiment. See docs/genesis-ui/GAP_LIST.md.
  */
 
-export { GenesisShell, default } from './GenesisShell';
+export { GenesisShell, default, runtimeDot, runtimeLabel } from './GenesisShell';
 export type { GenesisShellProps } from './GenesisShell';
 
 export * from './types';

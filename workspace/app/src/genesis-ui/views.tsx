@@ -16,6 +16,7 @@ import { AvatarPicker } from './avatar/AvatarPicker';
 import { LAYOUT_MODES, THEMES, getLayoutMode, getTheme } from './registry';
 import { Badge, Button, EmptyState, Field, KeyValue, Notice, Panel, Progress, StatusDot, Switch, Tabs } from './components/ui';
 import { TeamPanel, TeamStrip } from './team/TeamViews';
+import type { RuntimeBinding } from './runtime/runtimeTypes';
 
 /**
  * Core views.
@@ -33,6 +34,10 @@ export interface ViewCommonProps {
   presets: Record<string, AvatarPreset>;
   mode: TeamMode;
   goTo: (view: ViewId, workerId?: string) => void;
+  /* Optional runtime binding (P0-A). Present in live/fixture-bound shells so a
+   * view can show honest connection state; absent in tests and minimal embeds,
+   * where the view must still render without it. Never required. */
+  runtime?: RuntimeBinding;
 }
 
 /* ---------------------------------------------------------------------------
