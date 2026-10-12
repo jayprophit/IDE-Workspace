@@ -1,0 +1,616 @@
+
+/**
+ * Supervisor design tokens.
+ *
+ * Deliberately a SEPARATE namespace from `genesis-ui`. That unit is accepted
+ * and frozen; importing its stylesheet would couple the two and make the
+ * token-only discipline impossible to enforce per-tree.
+ *
+ * Same dark glassmorphic language, same rules:
+ *   - components reference tokens only, never raw colour
+ *   - five themes, remapping semantic tokens the same way
+ *   - density is a separate axis from theme
+ *   - one state colour per SourceState, and never a colour for anything else
+ *
+ * The state palette is the important part: `NOT_EXPOSED` is NOT rendered as a
+ * muted "empty" grey that reads as harmless. It gets its own treatment,
+ * because "the backend does not expose this" is a finding, not an absence.
+ */
+
+/* --- state palette --------------------------------------------------------
+ * Ordered worst -> best, matching SEVERITY in the client. */
+:root,
+[data-supervisor-theme='abyss'] {
+  color-scheme: dark;
+
+  --surface-canvas: #05080f;
+  --surface-sunken: #04070d;
+  --surface-base: #0a1020;
+  --surface-raised: #101a2e;
+  --surface-overlay: #16223c;
+  --surface-inset: rgba(4, 7, 13, 0.55);
+  --surface-scrim: rgba(4, 7, 13, 0.75);
+
+  --glass-bg: rgba(16, 26, 46, 0.6);
+  --glass-bg-strong: rgba(16, 26, 46, 0.85);
+  --glass-border: rgba(148, 163, 184, 0.16);
+  --glass-blur: 18px;
+  --glass-saturate: 140%;
+
+  --text-primary: #e9eefb;
+  --text-secondary: #a6b4ce;
+  --text-muted: #66769a;
+  --text-inverse: #05080f;
+  --text-on-scrim: #a6b4ce;
+
+  --border-subtle: rgba(148, 163, 184, 0.09);
+  --border-default: rgba(148, 163, 184, 0.16);
+  --border-strong: rgba(148, 163, 184, 0.3);
+  --border-accent: rgba(96, 165, 250, 0.5);
+
+  --accent-base: #3b82f6;
+  --accent-strong: #2563eb;
+  --accent-soft: rgba(59, 130, 246, 0.14);
+  --accent-softer: rgba(59, 130, 246, 0.06);
+  --accent-text: #93c5fd;
+  --accent-contrast: #ffffff;
+
+  /* SourceFact states. Ten states, ten tokens, no overlap with state colours
+     used for anything else in this UI. */
+  --fact-live-verified: #34d399;
+  --fact-live-verified-soft: rgba(52, 211, 153, 0.13);
+  --fact-live: #22d3ee;
+  --fact-live-soft: rgba(34, 211, 238, 0.13);
+  --fact-stale: #fbbf24;
+  --fact-stale-soft: rgba(251, 191, 36, 0.13);
+  --fact-degraded: #fb923c;
+  --fact-degraded-soft: rgba(251, 146, 60, 0.14);
+  --fact-offline: #94a3b8;
+  --fact-offline-soft: rgba(148, 163, 184, 0.13);
+  --fact-unknown: #a78bfa;
+  --fact-unknown-soft: rgba(167, 139, 250, 0.13);
+  --fact-blocked: #f87171;
+  --fact-blocked-soft: rgba(248, 113, 113, 0.14);
+  --fact-not-exposed: #64748b;
+  --fact-not-exposed-soft: rgba(100, 116, 139, 0.16);
+  --fact-deferred: #38bdf8;
+  --fact-deferred-soft: rgba(56, 189, 248, 0.13);
+  --fact-fixture: #c084fc;
+  --fact-fixture-soft: rgba(192, 132, 252, 0.14);
+
+  --shadow-panel: 0 12px 32px rgba(2, 6, 23, 0.42);
+  --shadow-accent-glow: 0 0 0 1px var(--border-accent), 0 0 16px rgba(59, 130, 246, 0.28);
+  --focus-ring: 0 0 0 2px var(--accent-base);
+  --focus-ring-offset: 0 0 0 4px var(--accent-soft);
+
+  --canvas-glow: radial-gradient(1100px 460px at 74% -12%, rgba(59, 130, 246, 0.13), transparent 62%),
+    radial-gradient(720px 400px at 6% 106%, rgba(34, 211, 238, 0.07), transparent 60%);
+}
+
+[data-supervisor-theme='aurora'] {
+  color-scheme: dark;
+  --surface-canvas: #0c0616;
+  --surface-sunken: #070310;
+  --surface-base: #150a24;
+  --surface-raised: #1e1033;
+  --surface-overlay: #271645;
+  --surface-inset: rgba(7, 3, 16, 0.55);
+  --surface-scrim: rgba(7, 3, 16, 0.75);
+  --glass-bg: rgba(30, 16, 51, 0.6);
+  --glass-bg-strong: rgba(30, 16, 51, 0.85);
+  --glass-border: rgba(167, 139, 250, 0.2);
+  --text-primary: #f2eaff;
+  --text-secondary: #bda9e0;
+  --text-muted: #7d68a3;
+  --text-inverse: #0c0616;
+  --text-on-scrim: #bda9e0;
+  --border-subtle: rgba(167, 139, 250, 0.09);
+  --border-default: rgba(167, 139, 250, 0.2);
+  --border-strong: rgba(167, 139, 250, 0.36);
+  --border-accent: rgba(167, 139, 250, 0.55);
+  --accent-base: #8b5cf6;
+  --accent-strong: #7c3aed;
+  --accent-soft: rgba(139, 92, 246, 0.16);
+  --accent-softer: rgba(139, 92, 246, 0.07);
+  --accent-text: #c4b5fd;
+  --accent-contrast: #ffffff;
+  --canvas-glow: radial-gradient(1100px 480px at 72% -10%, rgba(139, 92, 246, 0.2), transparent 62%);
+}
+
+[data-supervisor-theme='ember'] {
+  color-scheme: dark;
+  --surface-canvas: #110a04;
+  --surface-sunken: #0b0602;
+  --surface-base: #1c1208;
+  --surface-raised: #26190c;
+  --surface-overlay: #332110;
+  --surface-inset: rgba(11, 6, 2, 0.55);
+  --surface-scrim: rgba(11, 6, 2, 0.75);
+  --glass-bg: rgba(38, 25, 12, 0.6);
+  --glass-bg-strong: rgba(38, 25, 12, 0.85);
+  --glass-border: rgba(251, 191, 36, 0.2);
+  --text-primary: #fdf2e0;
+  --text-secondary: #d6bd97;
+  --text-muted: #9c8261;
+  --text-inverse: #110a04;
+  --text-on-scrim: #d6bd97;
+  --border-subtle: rgba(251, 191, 36, 0.09);
+  --border-default: rgba(251, 191, 36, 0.2);
+  --border-strong: rgba(251, 191, 36, 0.34);
+  --border-accent: rgba(251, 191, 36, 0.5);
+  --accent-base: #f59e0b;
+  --accent-strong: #d97706;
+  --accent-soft: rgba(245, 158, 11, 0.15);
+  --accent-softer: rgba(245, 158, 11, 0.07);
+  --accent-text: #fde68a;
+  --accent-contrast: #1a1208;
+  --canvas-glow: radial-gradient(1100px 460px at 74% -12%, rgba(245, 158, 11, 0.15), transparent 62%);
+}
+
+[data-supervisor-theme='graphite'] {
+  color-scheme: dark;
+  --surface-canvas: #0e0f11;
+  --surface-sunken: #08090a;
+  --surface-base: #16171a;
+  --surface-raised: #1e1f24;
+  --surface-overlay: #26272d;
+  --surface-inset: rgba(8, 9, 10, 0.55);
+  --surface-scrim: rgba(8, 9, 10, 0.78);
+  --glass-bg: rgba(30, 31, 36, 0.68);
+  --glass-bg-strong: rgba(30, 31, 36, 0.88);
+  --glass-border: rgba(203, 213, 225, 0.13);
+  --text-primary: #edeff3;
+  --text-secondary: #a9adb8;
+  --text-muted: #73777f;
+  --text-inverse: #0e0f11;
+  --text-on-scrim: #a9adb8;
+  --border-subtle: rgba(203, 213, 225, 0.07);
+  --border-default: rgba(203, 213, 225, 0.13);
+  --border-strong: rgba(203, 213, 225, 0.25);
+  --border-accent: rgba(203, 213, 225, 0.45);
+  --accent-base: #94a3b8;
+  --accent-strong: #64748b;
+  --accent-soft: rgba(148, 163, 184, 0.14);
+  --accent-softer: rgba(148, 163, 184, 0.07);
+  --accent-text: #e2e8f0;
+  --accent-contrast: #0e0f11;
+  --canvas-glow: radial-gradient(1000px 420px at 74% -12%, rgba(203, 213, 225, 0.05), transparent 62%);
+}
+
+[data-supervisor-theme='frost'] {
+  color-scheme: light;
+  --surface-canvas: #eef2f7;
+  --surface-sunken: #e2e8f0;
+  --surface-base: #f7f9fc;
+  --surface-raised: #ffffff;
+  --surface-overlay: #ffffff;
+  --surface-inset: rgba(255, 255, 255, 0.72);
+  --surface-scrim: rgba(148, 163, 184, 0.42);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+  /* Darkened for the same reason genesis-ui darkened it: the 300/400 steps
+     used by the dark themes do not clear contrast on a light surface. */
+  --text-on-scrim: #334155;
+  --border-subtle: rgba(15, 23, 42, 0.06);
+  --border-default: rgba(15, 23, 42, 0.13);
+  --border-strong: rgba(15, 23, 42, 0.24);
+  --border-accent: rgba(37, 99, 235, 0.5);
+  --accent-base: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.1);
+  --accent-softer: rgba(37, 99, 235, 0.05);
+  --accent-text: #1d4ed8;
+  --accent-contrast: #ffffff;
+
+  /* Same states, darkened so they stay legible on white. A "LIVE_VERIFIED"
+     chip at 3.2:1 on a light panel is a decoration, not a signal. */
+  --fact-live-verified: #047857;
+  --fact-live-verified-soft: rgba(4, 120, 87, 0.12);
+  --fact-live: #0e7490;
+  --fact-live-soft: rgba(14, 116, 144, 0.12);
+  --fact-stale: #b45309;
+  --fact-stale-soft: rgba(180, 83, 9, 0.12);
+  --fact-degraded: #c2410c;
+  --fact-degraded-soft: rgba(194, 65, 12, 0.12);
+  --fact-offline: #475569;
+  --fact-offline-soft: rgba(71, 85, 105, 0.12);
+  --fact-unknown: #6d28d9;
+  --fact-unknown-soft: rgba(109, 40, 217, 0.12);
+  --fact-blocked: #be123c;
+  --fact-blocked-soft: rgba(190, 18, 60, 0.12);
+  --fact-not-exposed: #475569;
+  --fact-not-exposed-soft: rgba(71, 85, 105, 0.14);
+  --fact-deferred: #0369a1;
+  --fact-deferred-soft: rgba(3, 105, 161, 0.12);
+  --fact-fixture: #7e22ce;
+  --fact-fixture-soft: rgba(126, 34, 206, 0.12);
+
+  --shadow-panel: 0 10px 30px rgba(15, 23, 42, 0.1);
+  --canvas-glow: radial-gradient(1100px 460px at 74% -12%, rgba(37, 99, 235, 0.1), transparent 62%);
+}
+
+/* --- density -------------------------------------------------------------- */
+
+[data-supervisor-density='comfortable'] {
+  --sv-font: var(--sv-text-base);
+  --sv-row: 30px;
+  --sv-gap: var(--sv-space-3);
+  --sv-pad: var(--sv-space-4);
+  --sv-rail: 68px;
+  --sv-header: 52px;
+  --sv-status: 30px;
+  --sv-card-min: 210px;
+}
+
+[data-supervisor-density='compact'] {
+  --sv-font: var(--sv-text-sm);
+  --sv-row: 24px;
+  --sv-gap: var(--sv-space-2);
+  --sv-pad: var(--sv-space-2);
+  --sv-rail: 54px;
+  --sv-header: 42px;
+  --sv-status: 26px;
+  --sv-card-min: 168px;
+}
+
+/* --- primitives ----------------------------------------------------------- */
+
+:root {
+  --sv-space-1: 2px;
+  --sv-space-2: 4px;
+  --sv-space-3: 6px;
+  --sv-space-4: 8px;
+  --sv-space-5: 10px;
+  --sv-space-6: 12px;
+  --sv-space-8: 16px;
+  --sv-space-10: 20px;
+  --sv-space-12: 24px;
+  --sv-space-16: 32px;
+
+  --sv-radius-sm: 5px;
+  --sv-radius-md: 8px;
+  --sv-radius-lg: 12px;
+  --sv-radius-full: 999px;
+
+  --sv-text-2xs: 9px;
+  --sv-text-xs: 10px;
+  --sv-text-sm: 11px;
+  --sv-text-base: 12px;
+  --sv-text-md: 14px;
+  --sv-text-lg: 17px;
+  --sv-text-xl: 21px;
+
+  --sv-font: 'Segoe UI', system-ui, sans-serif;
+  --sv-font-mono: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  --sv-duration: 140ms;
+  --sv-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* --- base ----------------------------------------------------------------- */
+
+.sv-root {
+  font-family: var(--sv-font);
+  font-size: var(--sv-font, var(--sv-text-base));
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--surface-canvas);
+  -webkit-font-smoothing: antialiased;
+  /* Fills the viewport and owns the surface colour. Without this the body
+     showed through below the content. */
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sv-root *,
+.sv-root *::before,
+.sv-root *::after {
+  box-sizing: border-box;
+}
+
+.sv-root :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--focus-ring-offset);
+  border-radius: var(--sv-radius-sm);
+}
+
+/* The shell fills the viewport so the glass and the canvas glow reach the
+   edges. Without an explicit height it collapsed to content height and the
+   lower half of the page rendered on an unstyled body. */
+.sv-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; min-height: 0; background-image: var(--canvas-glow); background-color: var(--surface-canvas); }
+.sv-body { flex: 1; display: flex; min-height: 0; min-width: 0; overflow: hidden; }
+.sv-scroll { overflow: auto; min-height: 0; min-width: 0; }
+.sv-grow { flex: 1; min-width: 0; min-height: 0; }
+.sv-row { display: flex; align-items: center; gap: var(--sv-space-4); }
+.sv-row-between { justify-content: space-between; }
+.sv-col { display: flex; flex-direction: column; gap: var(--sv-space-4); }
+.sv-wrap { flex-wrap: wrap; }
+.sv-muted { color: var(--text-muted); }
+.sv-mono { font-family: var(--sv-font-mono); }
+.sv-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sv-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+.sv-root ::-webkit-scrollbar { width: 7px; height: 7px; }
+.sv-root ::-webkit-scrollbar-track { background: transparent; }
+.sv-root ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--sv-radius-full); }
+
+/* --- card / panel --------------------------------------------------------- */
+
+.sv-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--sv-radius-lg);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sv-card__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sv-space-4);
+  padding: var(--sv-space-4) var(--sv-space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.sv-card__title {
+  font-size: var(--sv-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  display: flex; align-items: center; gap: var(--sv-space-3);
+  min-width: 0;
+}
+
+.sv-card__body { padding: var(--sv-space-5); min-height: 0; }
+.sv-card--flush .sv-card__body { padding: 0; }
+
+/* --- header / rail / status ---------------------------------------------- */
+
+.sv-header {
+  height: var(--sv-header);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sv-space-6); padding: 0 var(--sv-pad);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  flex-shrink: 0;
+}
+
+.sv-brand { display: flex; align-items: center; gap: var(--sv-space-5); min-width: 0; }
+.sv-brand__mark { width: 26px; height: 26px; border-radius: var(--sv-radius-md); display: flex; align-items: center; justify-content: center; background: var(--accent-base); color: var(--accent-contrast); font-weight: 800; font-size: var(--sv-text-md); flex-shrink: 0; box-shadow: var(--shadow-accent-glow); }
+.sv-brand__text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.sv-brand__text strong { font-size: var(--sv-text-md); font-weight: 800; letter-spacing: -0.02em; }
+.sv-brand__text span { font-size: var(--sv-text-2xs); color: var(--text-muted); letter-spacing: 0.04em; }
+
+.sv-nav { display: flex; align-items: center; gap: var(--sv-space-1); overflow-x: auto; }
+
+.sv-navbtn {
+  font: inherit; font-size: var(--sv-text-sm); font-weight: 600;
+  height: var(--sv-row); padding: 0 var(--sv-space-5);
+  border-radius: var(--sv-radius-md); border: 1px solid transparent;
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+  display: inline-flex; align-items: center; gap: var(--sv-space-3); white-space: nowrap;
+  transition: background var(--sv-duration) var(--sv-ease), color var(--sv-duration) var(--sv-ease);
+}
+.sv-navbtn:hover { background: var(--accent-softer); color: var(--text-primary); }
+.sv-navbtn[aria-current='page'] { background: var(--accent-soft); border-color: var(--border-accent); color: var(--accent-text); }
+
+.sv-statusbar {
+  height: var(--sv-status); display: flex; align-items: center; gap: var(--sv-space-8);
+  padding: 0 var(--sv-pad); border-top: 1px solid var(--border-default);
+  background: var(--glass-bg-strong);
+  font-family: var(--sv-font-mono); font-size: var(--sv-text-xs); color: var(--text-muted);
+  flex-shrink: 0; overflow: hidden; white-space: nowrap;
+}
+.sv-statusbar__spacer { margin-left: auto; }
+
+.sv-dot { width: 6px; height: 6px; border-radius: var(--sv-radius-full); background: var(--fact-offline); flex-shrink: 0; }
+.sv-dot--live { background: var(--fact-live-verified); }
+.sv-dot--connecting { background: var(--fact-stale); }
+.sv-dot--down { background: var(--fact-blocked); }
+
+/* --- fact chip: the honesty vocabulary, 1:1 ------------------------------ */
+
+.sv-chip {
+  display: inline-flex; align-items: center; gap: var(--sv-space-2);
+  padding: 1px var(--sv-space-3); border-radius: var(--sv-radius-full);
+  border: 1px solid var(--border-default); background: var(--fact-offline-soft);
+  color: var(--fact-offline);
+  font-family: var(--sv-font-mono); font-size: var(--sv-text-2xs); font-weight: 700;
+  letter-spacing: 0.06em; white-space: nowrap;
+}
+
+.sv-chip[data-state='LIVE_VERIFIED'] { color: var(--fact-live-verified); background: var(--fact-live-verified-soft); border-color: var(--fact-live-verified); }
+.sv-chip[data-state='LIVE'] { color: var(--fact-live); background: var(--fact-live-soft); border-color: var(--fact-live); }
+.sv-chip[data-state='STALE'] { color: var(--fact-stale); background: var(--fact-stale-soft); border-color: var(--fact-stale); }
+.sv-chip[data-state='DEGRADED'] { color: var(--fact-degraded); background: var(--fact-degraded-soft); border-color: var(--fact-degraded); }
+.sv-chip[data-state='OFFLINE'] { color: var(--fact-offline); background: var(--fact-offline-soft); border-color: var(--fact-offline); }
+.sv-chip[data-state='UNKNOWN'] { color: var(--fact-unknown); background: var(--fact-unknown-soft); border-color: var(--fact-unknown); }
+.sv-chip[data-state='BLOCKED'] { color: var(--fact-blocked); background: var(--fact-blocked-soft); border-color: var(--fact-blocked); }
+/* NOT_EXPOSED gets a dashed edge: it is a declared gap, not a soft "empty".
+   A solid border would let it read as one more ordinary quiet value. */
+.sv-chip[data-state='NOT_EXPOSED'] { color: var(--fact-not-exposed); background: var(--fact-not-exposed-soft); border-color: var(--fact-not-exposed); border-style: dashed; }
+.sv-chip[data-state='DEFERRED_BACKEND_INTERFACE'] { color: var(--fact-deferred); background: var(--fact-deferred-soft); border-color: var(--fact-deferred); border-style: dashed; }
+.sv-chip[data-state='FIXTURE'] { color: var(--fact-fixture); background: var(--fact-fixture-soft); border-color: var(--fact-fixture); }
+
+/* --- fact row: one observed value ---------------------------------------- */
+
+.sv-fact {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) 1fr auto;
+  align-items: baseline;
+  gap: var(--sv-space-3) var(--sv-space-4);
+  padding: var(--sv-space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--sv-text-xs);
+}
+.sv-fact:last-child { border-bottom: 0; }
+
+.sv-fact__key { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-fact__val { font-family: var(--sv-font-mono); color: var(--text-primary); overflow-wrap: anywhere; min-width: 0; }
+/* A value that is present but not trustworthy is dimmed, so the eye is not
+   drawn to a number the backend has flagged. The chip carries the reason. */
+.sv-fact[data-state='OFFLINE'] .sv-fact__val,
+.sv-fact[data-state='STALE'] .sv-fact__val,
+.sv-fact[data-state='DEGRADED'] .sv-fact__val { opacity: 0.72; }
+.sv-fact__age { font-family: var(--sv-font-mono); font-size: var(--sv-text-2xs); color: var(--text-muted); white-space: nowrap; }
+.sv-fact__note { grid-column: 1 / -1; font-size: var(--sv-text-2xs); color: var(--text-muted); line-height: 1.4; }
+
+.sv-val--absent { color: var(--text-muted); font-style: italic; font-family: var(--sv-font); }
+
+/* --- layout --------------------------------------------------------------- */
+
+.sv-view { display: flex; flex-direction: column; height: 100%; min-height: 0; flex: 1; gap: var(--sv-gap); padding: var(--sv-pad); align-content: start; }
+.sv-view__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sv-space-6); flex-wrap: wrap; flex-shrink: 0; }
+.sv-view__title { font-size: var(--sv-text-lg); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+.sv-view__sub { font-size: var(--sv-text-xs); color: var(--text-muted); }
+
+/* auto-fit + a density token, so it reflows without breakpoint tables. */
+.sv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(var(--sv-card-min), 100%), 1fr)); gap: var(--sv-gap); align-content: start; }
+.sv-grid--wide { --sv-card-min: 340px; }
+.sv-grid--narrow { --sv-card-min: 150px; }
+
+/* --- buttons -------------------------------------------------------------- */
+
+.sv-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sv-space-3);
+  font: inherit; font-size: var(--sv-text-xs); font-weight: 700; line-height: 1;
+  height: var(--sv-row); padding: 0 var(--sv-space-5);
+  border-radius: var(--sv-radius-md); border: 1px solid var(--border-default);
+  background: var(--surface-inset); color: var(--text-primary); cursor: pointer; white-space: nowrap;
+  transition: background var(--sv-duration) var(--sv-ease), border-color var(--sv-duration) var(--sv-ease);
+}
+.sv-btn:hover:not(:disabled) { background: var(--accent-softer); border-color: var(--border-strong); }
+.sv-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.sv-btn--primary { background: var(--accent-base); border-color: transparent; color: var(--accent-contrast); }
+
+/* --- notices -------------------------------------------------------------- */
+
+.sv-notice {
+  display: flex; align-items: flex-start; gap: var(--sv-space-4);
+  padding: var(--sv-space-4) var(--sv-space-5);
+  border-radius: var(--sv-radius-sm); border: 1px dashed var(--border-strong);
+  background: var(--surface-inset); font-size: var(--sv-text-xs);
+  color: var(--text-secondary); line-height: 1.45;
+}
+.sv-notice--warn { border-color: var(--fact-degraded); color: var(--fact-degraded); background: var(--fact-degraded-soft); }
+.sv-notice--down { border-color: var(--fact-blocked); color: var(--fact-blocked); background: var(--fact-blocked-soft); }
+
+.sv-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sv-space-3); padding: var(--sv-space-12); text-align: center;
+  color: var(--text-muted); font-size: var(--sv-text-xs); height: 100%;
+}
+.sv-empty__title { font-weight: 700; color: var(--text-secondary); font-size: var(--sv-text-sm); }
+
+/* --- events --------------------------------------------------------------- */
+
+.sv-event {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: baseline; gap: var(--sv-space-3);
+  padding: var(--sv-space-3) var(--sv-space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--sv-text-xs);
+}
+.sv-event:last-child { border-bottom: 0; }
+.sv-event__seq { font-family: var(--sv-font-mono); font-size: var(--sv-text-2xs); color: var(--text-muted); }
+.sv-event__name { font-family: var(--sv-font-mono); color: var(--text-primary); overflow-wrap: anywhere; }
+.sv-event__at { font-family: var(--sv-font-mono); font-size: var(--sv-text-2xs); color: var(--text-muted); white-space: nowrap; }
+
+/* --- stat tile ------------------------------------------------------------ */
+
+.sv-stat { display: flex; flex-direction: column; gap: var(--sv-space-1); }
+.sv-stat__value { font-family: var(--sv-font-mono); font-size: var(--sv-text-xl); font-weight: 700; color: var(--text-primary); line-height: 1.1; }
+.sv-stat__age { font-family: var(--sv-font-mono); font-size: var(--sv-text-2xs); color: var(--text-muted); }
+.sv-stat__label { font-size: var(--sv-text-2xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700; }
+.sv-stat--absent .sv-stat__value { color: var(--text-muted); font-size: var(--sv-text-md); font-family: var(--sv-font); font-style: italic; font-weight: 600; }
+
+
+/* The Overview roll-up.
+ *
+ * Each tile holds its own state chip. The chip must hug its text: stretched
+ * across a grid cell a three-word state name became a full-width bar, which
+ * read as a selection or a progress meter rather than a status. */
+.sv-health {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sv-space-2);
+  padding: var(--sv-space-4);
+  border-radius: var(--sv-radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-inset);
+  min-width: 0;
+}
+
+.sv-health .sv-chip { align-self: flex-start; }
+
+.sv-health__meta { font-size: var(--sv-text-2xs); color: var(--text-muted); font-family: var(--sv-font-mono); }
+
+/* --- table ---------------------------------------------------------------- */
+
+.sv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--sv-text-xs);
+}
+.sv-table th {
+  text-align: left;
+  font-size: var(--sv-text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  font-weight: 700;
+  padding: var(--sv-space-3) var(--sv-space-4);
+  border-bottom: 1px solid var(--border-default);
+  position: sticky;
+  top: 0;
+  background: var(--surface-base);
+}
+.sv-table td {
+  padding: var(--sv-space-3) var(--sv-space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+.sv-table tbody tr:hover td { background: var(--accent-softer); }
+
+.sv-hint { font-size: var(--sv-text-xs); color: var(--text-secondary); line-height: 1.45; }
+.sv-labelish {
+  font-size: var(--sv-text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+/* --- responsive ----------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .sv-grid--wide { --sv-card-min: 280px; }
+}
+
+@media (max-width: 760px) {
+  .sv-header { height: auto; min-height: var(--sv-header); flex-wrap: wrap; padding: var(--sv-space-3) var(--sv-space-4); }
+  .sv-nav { order: 3; width: 100%; }
+  .sv-grid, .sv-grid--wide { --sv-card-min: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-root *, .sv-root *::before, .sv-root *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
