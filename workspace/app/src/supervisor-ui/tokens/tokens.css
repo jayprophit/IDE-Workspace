@@ -600,6 +600,296 @@
   letter-spacing: 0.07em;
   color: var(--text-muted);
 }
+
+/* ---------------------------------------------------------------------------
+ * AVATAR SYSTEM (§4 AV-1, §7)
+ *
+ * The hue is supplied PER ELEMENT as `--avatar-h` (a plain number, 0-359).
+ * Everything else - saturation, lightness, ink, ring - comes from tokens, so
+ * the same avatar re-grades across all five themes without a code change and
+ * without a raw colour literal anywhere in the component.
+ *
+ * Contrast guarantee: the initials are drawn in `--avatar-ink`, which is the
+ * theme's own text colour, NOT a hue-derived colour. Contrast therefore comes
+ * from the theme rather than from whichever hash a worker happened to get; a
+ * hue-derived ink would fail on some hues in some themes.
+ * ------------------------------------------------------------------------ */
+
+[data-supervisor-theme='abyss'],
+[data-supervisor-theme='aurora'],
+[data-supervisor-theme='ember'],
+[data-supervisor-theme='graphite'] {
+  /* Dark themes: a dark, saturated disc so the light ink clears AA. */
+  --avatar-hue-s: 42%;
+  --avatar-hue-l: 19%;
+  --avatar-ink: var(--text-primary);
+  --avatar-ink-dim: var(--text-secondary);
+  --avatar-disc-edge: rgba(255, 255, 255, 0.10);
+  --avatar-ring-thickness: 2px;
+}
+
+/* Light theme: a pale disc so the dark ink clears AA. The hue still reads. */
+[data-supervisor-theme='frost'] {
+  --avatar-hue-s: 46%;
+  --avatar-hue-l: 88%;
+  --avatar-ink: var(--text-primary);
+  --avatar-ink-dim: var(--text-secondary);
+  --avatar-disc-edge: rgba(15, 23, 42, 0.10);
+  --avatar-ring-thickness: 2px;
+}
+
+.sv-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--sv-radius-full);
+  /* Fallbacks keep the shape correct even if the token layer is missing. */
+  overflow: visible;
+  user-select: none;
+}
+
+.sv-avatar__disc {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* The only place a hue becomes colour, and it is assembled from tokens. */
+  background: hsl(var(--avatar-h, 210) var(--avatar-hue-s) var(--avatar-hue-l));
+  border: 1px solid var(--avatar-disc-edge);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sv-avatar__glyph {
+  width: 52%;
+  height: 52%;
+  fill: var(--avatar-ink-dim);
+  opacity: 0.5;
+}
+
+.sv-avatar__initials {
+  position: relative;
+  font-family: var(--sv-font);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--avatar-ink);
+  line-height: 1;
+  /* Glyph sits behind the initials, offset up, so both read at 32px+. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sv-avatar__glyph {
+  transform: translateY(-18%);
+}
+
+/* Ring colour comes from the EXISTING fact-state tokens, so a worker's live
+   state reads the same as a degraded fact anywhere else in the dashboard. */
+.sv-avatar__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: var(--avatar-ring-thickness) solid transparent;
+  pointer-events: none;
+}
+
+.sv-avatar[data-state='LIVE_VERIFIED'] .sv-avatar__ring { border-color: var(--fact-live-verified); }
+.sv-avatar[data-state='LIVE'] .sv-avatar__ring { border-color: var(--fact-live); }
+.sv-avatar[data-state='STALE'] .sv-avatar__ring { border-color: var(--fact-stale); }
+.sv-avatar[data-state='DEGRADED'] .sv-avatar__ring { border-color: var(--fact-degraded); }
+.sv-avatar[data-state='OFFLINE'] .sv-avatar__ring { border-color: var(--fact-offline); }
+.sv-avatar[data-state='UNKNOWN'] .sv-avatar__ring { border-color: var(--fact-unknown); border-style: dashed; }
+.sv-avatar[data-state='BLOCKED'] .sv-avatar__ring { border-color: var(--fact-blocked); }
+.sv-avatar[data-state='NOT_EXPOSED'] .sv-avatar__ring { border-color: var(--fact-not-exposed); border-style: dashed; }
+.sv-avatar[data-state='DEFERRED_BACKEND_INTERFACE'] .sv-avatar__ring { border-color: var(--fact-deferred); border-style: dashed; }
+.sv-avatar[data-state='FIXTURE'] .sv-avatar__ring { border-color: var(--fact-fixture); }
+
+/* Initials scale with the avatar so they stay legible at every size. */
+.sv-avatar--sm { font-size: 10px; }
+.sv-avatar--md { font-size: 14px; }
+.sv-avatar--lg { font-size: 26px; }
+.sv-avatar--xl { font-size: 42px; }
+
+.sv-avatar-tile { display: flex; flex-direction: column; align-items: center; gap: var(--sv-space-2); }
+
+/* ---------------------------------------------------------------------------
+ * WORKER CARD (§7)
+ * ------------------------------------------------------------------------ */
+
+.sv-worker-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-4);
+  padding: var(--sv-space-6);
+  border-radius: var(--sv-radius-lg);
+  border: 1px solid var(--border-default);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-panel);
+  min-width: 0;
+}
+
+.sv-worker-card[data-selected='true'] {
+  border-color: var(--accent-base);
+  box-shadow: var(--shadow-accent-glow), var(--shadow-panel);
+}
+
+.sv-worker-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sv-space-5);
+  min-width: 0;
+}
+
+.sv-worker-card__id { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.sv-worker-card__name {
+  font-size: var(--sv-text-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sv-worker-card__role {
+  font-size: var(--sv-text-xs);
+  color: var(--text-secondary);
+}
+
+.sv-worker-card__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--sv-radius-full);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.sv-worker-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sv-space-2);
+  font-size: var(--sv-text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sv-worker-card__facts { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.sv-worker-card__row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: var(--sv-space-3);
+  align-items: baseline;
+  font-size: var(--sv-text-xs);
+  min-width: 0;
+}
+
+.sv-worker-card__key { color: var(--text-muted); font-size: var(--sv-text-2xs); text-transform: uppercase; letter-spacing: 0.06em; }
+.sv-worker-card__val { color: var(--text-primary); font-family: var(--font-mono); overflow-wrap: anywhere; min-width: 0; }
+.sv-worker-card__val--absent { color: var(--text-muted); font-family: var(--sv-font); font-style: italic; }
+
+/* Quota is prominent when a worker is actually blocked on it. */
+.sv-worker-card__quota {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-3);
+  padding: var(--sv-space-3) var(--sv-space-4);
+  border-radius: var(--sv-radius-sm);
+  background: var(--fact-stale-soft);
+  border: 1px solid var(--fact-stale);
+  font-size: var(--sv-text-xs);
+  color: var(--fact-stale);
+}
+
+.sv-worker-card__actions { display: flex; flex-wrap: wrap; gap: var(--sv-space-2); }
+
+.sv-worker-card__btn {
+  font: inherit;
+  font-size: var(--sv-text-2xs);
+  font-weight: 600;
+  padding: var(--sv-space-2) var(--sv-space-4);
+  border-radius: var(--sv-radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sv-worker-card__btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text-primary); }
+.sv-worker-card__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sv-worker-card__btn--live { border-color: var(--accent-base); color: var(--accent-text); }
+.sv-worker-card__btn--primary { background: var(--accent-base); border-color: transparent; color: var(--accent-contrast); }
+
+/* An action with no backend route says so on the control itself, not only
+   after a click. */
+.sv-worker-card__btn--deferred { border-style: dashed; opacity: 0.75; }
+
+/* ---------------------------------------------------------------------------
+ * TEAM ROOM (§7)
+ * ------------------------------------------------------------------------ */
+
+.sv-teamroom { display: flex; flex-direction: column; gap: var(--sv-space-5); }
+
+.sv-teamroom__filters {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-4);
+  flex-wrap: wrap;
+}
+
+.sv-teamroom__filtergroup { display: inline-flex; align-items: center; gap: var(--sv-space-2); }
+
+.sv-teamroom__filterlabel { font-size: var(--sv-text-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+
+.sv-chipbtn {
+  font: inherit;
+  font-size: var(--sv-text-2xs);
+  font-weight: 600;
+  padding: var(--sv-space-2) var(--sv-space-4);
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.sv-chipbtn[aria-pressed='true'] { border-color: var(--accent-base); color: var(--accent-text); background: var(--accent-soft); }
+
+.sv-teamroom__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: var(--sv-space-5);
+  align-items: start;
+}
+
+.sv-actionlog { display: flex; flex-direction: column; gap: var(--sv-space-2); }
+
+.sv-actionlog__row {
+  display: flex;
+  gap: var(--sv-space-3);
+  align-items: baseline;
+  padding: var(--sv-space-3) var(--sv-space-4);
+  border-radius: var(--sv-radius-sm);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--sv-text-xs);
+}
+
+.sv-actionlog__kind {
+  font-size: var(--sv-text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* --- responsive ----------------------------------------------------------- */
 
 @media (max-width: 1100px) {

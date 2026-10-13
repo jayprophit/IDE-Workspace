@@ -3,6 +3,7 @@ import { isSourceFact, leafFacts, sectionState } from '../api/client';
 import { SECTION_IDS, SECTION_LABEL, type RepositoryFacts, type SectionId, type SourceFact, type SourceState, type SupervisorSnapshot } from '../api/types';
 import { Card, EmptyState, FactChip, FactRow, Notice, StatTile, formatAge } from './fact';
 import { WorkerRoster } from './roster';
+import { TeamRoom } from './team-room';
 
 /**
  * Section views.
@@ -399,6 +400,16 @@ export function SupervisionSection({ snapshot }: { snapshot: SupervisorSnapshot 
             {/* §17.J / §18: the live worker roster — click a worker to inspect
                 its detail and issue a continue through its real channel. */}
             <WorkerRoster section={s} />
+
+            {/* §7 / AV-1..AV-8 (M2-A): the avatar-first team room. Reads the
+                SAME `workers` fact as WorkerRoster above - one roster, one
+                source, no second request. Mounted alongside the table rather
+                than replacing it so the roster's detail/continue path stays
+                intact until M2-B lands. */}
+            <div data-testid="sup-team-room">
+              <h3 className="sv-card__title">Team room</h3>
+              <TeamRoom section={s} />
+            </div>
 
             {gaps && <FactRow name="gaps_by_severity" fact={gaps} testId="sup-gaps-fact" />}
             {gapRows && (
