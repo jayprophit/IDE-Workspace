@@ -71,6 +71,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         'genesis-ui': resolve(__dirname, 'genesis-ui.html'),
         'supervisor-ui': resolve(__dirname, 'supervisor-ui.html'),
+        'supervisor-m2': resolve(__dirname, 'supervisor-m2.html'),
       },
     },
   },
