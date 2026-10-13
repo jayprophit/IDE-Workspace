@@ -237,7 +237,12 @@
 /* --- density -------------------------------------------------------------- */
 
 [data-supervisor-density='comfortable'] {
-  --sv-font: var(--sv-text-base);
+  /* `--sv-font-size`, NOT `--sv-font`. The density blocks originally reused
+     `--sv-font`, which is the FONT-FAMILY token declared in :root below.
+     That made `font-family: var(--sv-font)` on `.sv-root` resolve to "12px" -
+     an invalid font-family, so the entire dashboard silently fell back to
+     Times New Roman. Density must not shadow the typeface. */
+  --sv-font-size: var(--sv-text-base);
   --sv-row: 30px;
   --sv-gap: var(--sv-space-3);
   --sv-pad: var(--sv-space-4);
@@ -248,7 +253,7 @@
 }
 
 [data-supervisor-density='compact'] {
-  --sv-font: var(--sv-text-sm);
+  --sv-font-size: var(--sv-text-sm);
   --sv-row: 24px;
   --sv-gap: var(--sv-space-2);
   --sv-pad: var(--sv-space-2);
@@ -291,11 +296,57 @@
   --sv-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* --- M3 glow + glass (Â§7/Â§18 F4 polish) ------------------------------------
+ * Token definitions only. The component rules that consume these live below,
+ * in the component half of the file, where no colour literal is permitted.
+ *
+ * These exist so the vibe-prototype's F4 treatment - luminous edges, glass
+ * layering, a breathing glow on a live worker - can be reproduced WITHOUT
+ * hard-coding the prototype's cyan. Each theme supplies its own accent glow,
+ * so "glow" means "this theme's accent", not "cyan, everywhere".
+ *
+ * `--glow-halo` is a gradient rather than a solid, because a single
+ * box-shadow reads as a blur; the prototype's layered translucent discs read as
+ * light, and the gradient is what carries that without an image.
+ */
+:root {
+  --glow-strength: 0.28;
+  --glow-soft-strength: 0.14;
+  --conference-tile-min: 210px;
+}
+
+/* Per-theme luminous accents. The prototype hard-coded cyan; here each theme
+   glows in its OWN accent, so the F4 treatment survives a theme change. */
+[data-supervisor-theme='abyss'] {
+  --glow-accent: 96, 165, 250;
+  --glow-accent-2: 167, 139, 250;
+}
+[data-supervisor-theme='aurora'] {
+  --glow-accent: 167, 139, 250;
+  --glow-accent-2: 96, 165, 250;
+}
+[data-supervisor-theme='ember'] {
+  --glow-accent: 251, 191, 36;
+  --glow-accent-2: 249, 115, 22;
+}
+[data-supervisor-theme='graphite'] {
+  --glow-accent: 203, 213, 225;
+  --glow-accent-2: 148, 163, 184;
+}
+[data-supervisor-theme='frost'] {
+  /* Light themes glow with more restraint: the same alpha on a pale surface
+     washes out, and the text contrast is what matters most there. */
+  --glow-accent: 37, 99, 235;
+  --glow-accent-2: 14, 165, 233;
+  --glow-strength: 0.2;
+}
+
 /* --- base ----------------------------------------------------------------- */
 
 .sv-root {
   font-family: var(--sv-font);
-  font-size: var(--sv-font, var(--sv-text-base));
+  /* Density drives the size; the typeface comes from --sv-font alone. */
+  font-size: var(--sv-font-size, var(--sv-text-base));
   line-height: 1.5;
   color: var(--text-primary);
   background: var(--surface-canvas);
@@ -602,7 +653,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * AVATAR SYSTEM (§4 AV-1, §7)
+ * AVATAR SYSTEM (ï¿½4 AV-1, ï¿½7)
  *
  * The hue is supplied PER ELEMENT as `--avatar-h` (a plain number, 0-359).
  * Everything else - saturation, lightness, ink, ring - comes from tokens, so
@@ -716,7 +767,7 @@
 .sv-avatar-tile { display: flex; flex-direction: column; align-items: center; gap: var(--sv-space-2); }
 
 /* ---------------------------------------------------------------------------
- * WORKER CARD (§7)
+ * WORKER CARD (ï¿½7)
  * ------------------------------------------------------------------------ */
 
 .sv-worker-card {
@@ -832,7 +883,7 @@
 .sv-worker-card__btn--deferred { border-style: dashed; opacity: 0.75; }
 
 /* ---------------------------------------------------------------------------
- * TEAM ROOM (§7)
+ * TEAM ROOM (ï¿½7)
  * ------------------------------------------------------------------------ */
 
 .sv-teamroom { display: flex; flex-direction: column; gap: var(--sv-space-5); }
@@ -888,6 +939,241 @@
   letter-spacing: 0.06em;
   font-weight: 700;
   white-space: nowrap;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * M3: CONFERENCE (ï¿½12), MESSAGE FEED (ï¿½14), RESOURCE + GIT TILES (ï¿½6)
+ *
+ * All of this is the component half: tokens only, no colour literal. Every
+ * glow is assembled from `--glow-accent` (a per-theme RGB triple) via
+ * rgb(var(--glow-accent) / alpha), so switching theme re-grades the
+ * luminosity as well as the palette.
+ * ------------------------------------------------------------------------ */
+
+.sv-conf { padding: var(--sv-space-5); }
+.sv-conf__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sv-space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sv-space-4);
+}
+.sv-conf__media { display: flex; gap: var(--sv-space-2); flex-wrap: wrap; }
+
+/* A capability that does not exist must not look like a button that works. */
+.sv-chip--deferred {
+  border-style: dashed;
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+/* The honest speaker banner. This is the element the prototype filled with a
+   hardcoded `speaking: true`; here it states that nobody is speaking. */
+.sv-conf__nobody,
+.sv-conf__speaker {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-3);
+  flex-wrap: wrap;
+  padding: var(--sv-space-3) var(--sv-space-4);
+  border-radius: var(--sv-radius-md);
+  border: 1px dashed var(--border-default);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  font-size: var(--sv-text-xs);
+  margin-bottom: var(--sv-space-4);
+}
+.sv-conf__speaker {
+  border-style: solid;
+  border-color: var(--border-accent);
+  box-shadow: 0 0 18px rgb(var(--glow-accent) / var(--glow-soft-strength));
+}
+
+.sv-conf__filters {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sv-space-4);
+}
+
+.sv-conf__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--conference-tile-min), 100%), 1fr));
+  gap: var(--sv-space-4);
+  align-items: start;
+}
+
+/* The conference tile: glass panel, luminous edge, large avatar. The scrim
+   gradient under the footer is what lets text sit over the avatar disc without
+   a solid plate. */
+.sv-conf__tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-3);
+  padding: var(--sv-space-4);
+  border-radius: var(--sv-radius-lg);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--shadow-panel);
+  transition: border-color var(--sv-duration) var(--sv-ease), box-shadow var(--sv-duration) var(--sv-ease);
+  overflow: hidden;
+}
+.sv-conf__tile:hover { border-color: var(--border-accent); }
+
+/* A live worker gets the glow. The colour comes from the honesty token for its
+   state, so a DEGRADED worker glows amber, not the theme accent - the glow is
+   information, not decoration. */
+.sv-conf__tile[data-state='LIVE_VERIFIED'],
+.sv-conf__tile[data-state='LIVE'] {
+  box-shadow: var(--shadow-panel), 0 0 20px rgb(var(--glow-accent) / var(--glow-strength));
+}
+.sv-conf__tile[data-state='DEGRADED'],
+.sv-conf__tile[data-state='STALE'] {
+  box-shadow: var(--shadow-panel), 0 0 16px var(--fact-stale-soft);
+}
+.sv-conf__tile[data-state='OFFLINE'],
+.sv-conf__tile[data-state='BLOCKED'] { border-style: dashed; }
+
+.sv-conf__tile-badge { display: flex; gap: var(--sv-space-2); }
+.sv-conf__tile-avatar {
+  display: flex;
+  justify-content: center;
+  padding: var(--sv-space-2) 0;
+}
+
+/* Bottom scrim: the prototype's `from-slate-950/90 via-transparent`. Here the
+   deep tone is the theme's own text-inverse, so it works on Frost too. */
+.sv-conf__tile-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: var(--sv-space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.sv-conf__tile-name {
+  font-size: var(--sv-text-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sv-conf__tile-status { font-size: var(--sv-text-2xs); color: var(--text-secondary); }
+.sv-conf__tile-task { font-size: var(--sv-text-2xs); color: var(--text-secondary); overflow-wrap: anywhere; }
+.sv-conf__tile-task--absent { color: var(--text-muted); font-style: italic; }
+
+/* --- resource gauges (ï¿½6) --------------------------------------------------
+ * Track + fill, the shape a 0..1 utilisation reading wants. The NOT_EXPOSED
+ * treatment is a DASHED track, so an unmeasured axis never reads as an idle
+ * one. That distinction is the entire point of the tile. */
+
+.sv-res {
+  padding: var(--sv-space-5);
+  /* The scroll view is a column flexbox, so a card is a flex item and would
+     otherwise be compressed toward its min-height:0 - clipping the gauge
+     tracks. M3 cards hold content that must stay at its natural height. */
+  flex-shrink: 0;
+}
+.sv-res__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--sv-space-4);
+}
+.sv-res__gauge { display: flex; flex-direction: column; gap: var(--sv-space-2); }
+.sv-res__gauge-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sv-space-2); }
+.sv-res__gauge-val { font-size: var(--sv-text-sm); font-weight: 700; color: var(--text-primary); }
+.sv-res__track {
+  position: relative;
+  height: 8px;
+  border-radius: var(--sv-radius-full);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+.sv-res__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgb(var(--glow-accent) / 0.75), rgb(var(--glow-accent-2) / 0.9));
+  transition: width var(--sv-duration) var(--sv-ease);
+}
+.sv-res__gauge[data-exposed='false'] .sv-res__track { border-style: dashed; border-color: var(--border-default); }
+.sv-res__gauge[data-exposed='false'] .sv-res__gauge-val { color: var(--text-muted); font-weight: 400; font-size: var(--sv-text-2xs); }
+.sv-res__foot { margin-top: var(--sv-space-4); font-size: var(--sv-text-2xs); color: var(--text-muted); }
+
+/* --- git health (ï¿½6) ------------------------------------------------------ */
+
+.sv-git {
+  padding: var(--sv-space-5);
+  flex-shrink: 0;
+}
+.sv-git__totals { display: flex; gap: var(--sv-space-4); flex-wrap: wrap; margin: var(--sv-space-3) 0; font-size: var(--sv-text-xs); color: var(--text-secondary); }
+.sv-git[data-state='NOT_EXPOSED'] { border-style: dashed; }
+
+/* --- message feed (ï¿½14) ----------------------------------------------------
+ * One row per real event. No bubbles, no avatars, no composer: this is a
+ * machine-event log rendered legibly, which is what the API actually emits. */
+
+.sv-msgfeed { display: flex; flex-direction: column; gap: var(--sv-space-2); }
+.sv-msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-1);
+  padding: var(--sv-space-3) var(--sv-space-4);
+  border-radius: var(--sv-radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-left: 2px solid var(--border-accent);
+}
+.sv-msg__head { display: flex; align-items: baseline; gap: var(--sv-space-3); flex-wrap: wrap; }
+.sv-msg__type { font-size: var(--sv-text-xs); font-weight: 700; color: var(--text-primary); }
+.sv-msg__worker { font-size: var(--sv-text-2xs); color: var(--accent-text); }
+.sv-msg__time { font-size: var(--sv-text-2xs); color: var(--text-muted); }
+.sv-msg__seq { font-size: var(--sv-text-2xs); color: var(--text-muted); margin-left: auto; }
+.sv-msg__payload { font-size: var(--sv-text-2xs); color: var(--text-secondary); overflow-wrap: anywhere; }
+
+/* --- M3 motion (ï¿½7 F4) -----------------------------------------------------
+ * The prototype's orbit + pulse-glow keyframes, ported onto tokens and gated
+ * on reduced-motion. `pulseGlow` animates `filter: drop-shadow()` rather than
+ * box-shadow because drop-shadow follows the element's alpha silhouette, which
+ * is what makes a translucent avatar disc read as luminous instead of blurred.
+ */
+
+@keyframes sv-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sv-pulse-glow {
+  0%, 100% { opacity: 0.72; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+
+.sv-conf__tile-avatar .sv-avatar-tile { position: relative; }
+
+/* The orbit ring is decorative. It is aria-hidden via the avatar's own
+   labelling and is not announced. */
+.sv-conf__tile-avatar .sv-avatar::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: var(--sv-radius-full);
+  border: 1px dashed rgb(var(--glow-accent) / 0.35);
+  animation: sv-orbit 24s linear infinite;
+  pointer-events: none;
+}
+.sv-conf__tile[data-state='LIVE_VERIFIED'] .sv-avatar::before,
+.sv-conf__tile[data-state='LIVE'] .sv-avatar::before {
+  animation: sv-orbit 24s linear infinite, sv-pulse-glow 4s ease-in-out infinite;
 }
 
 /* --- responsive ----------------------------------------------------------- */

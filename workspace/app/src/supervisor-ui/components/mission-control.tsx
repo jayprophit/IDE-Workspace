@@ -1,5 +1,6 @@
 import type { SupervisorSnapshot } from '../api/types';
 import { factsIn } from '../api/client';
+import { TestHealthTile } from './resource-tiles';
 
 /**
  * MissionControl — the §6/§10 owner overview.
@@ -153,6 +154,10 @@ export function MissionControl({ snapshot }: { snapshot: SupervisorSnapshot | nu
             </div>
           </div>
         ))}
+        {/* §6: test health has no backend source yet. It renders as an
+            explicitly deferred tile rather than being dropped, because
+            "not wired" is information and a missing tile is not. */}
+        <TestHealthTile snapshot={snapshot} />
       </div>
     </div>
   );

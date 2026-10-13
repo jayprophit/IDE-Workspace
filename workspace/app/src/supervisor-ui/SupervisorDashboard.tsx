@@ -5,6 +5,9 @@ import { SECTION_LABEL, type SectionId } from './api/types';
 import { Announcer, EventFeed, useHealthAnnouncements, useHealthMap } from './components/events';
 import { Card, EmptyState, FactChip, Notice, formatAge } from './components/fact';
 import { MissionControl } from './components/mission-control';
+import { ConferenceView } from './components/conference';
+import { MessageFeed } from './components/message-feed';
+import { GitHealthPanel, ResourceMeters } from './components/resource-tiles';
 import {
   AbsentSections,
   CodexSection,
@@ -37,12 +40,14 @@ import './tokens/tokens.css';
  * set, so a single offline source is visible rather than averaged away.
  */
 
-type TabId = 'overview' | 'repositories' | 'runtime' | 'events';
+type TabId = 'overview' | 'repositories' | 'runtime' | 'conference' | 'messages' | 'events';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'repositories', label: 'Repositories' },
   { id: 'runtime', label: 'Runtime' },
+  { id: 'conference', label: 'Conference' },
+  { id: 'messages', label: 'Messages' },
   { id: 'events', label: 'Events' },
 ];
 
@@ -169,6 +174,11 @@ export function SupervisorDashboard({
                     live supervision/resources facts up into the owner tiles,
                     above the detailed sections. One data source, no new store. */}
                 <MissionControl snapshot={supervisor.snapshot} />
+                {/* §6: resource gauges + git health, both read-only roll-ups of
+                    sections the dashboard already has. A gauge whose source is
+                    absent reads NOT_EXPOSED rather than 0. */}
+                <ResourceMeters section={supervisor.snapshot?.sections?.resources} />
+                <GitHealthPanel section={supervisor.snapshot?.sections?.repositories} />
                 <Overview snapshot={supervisor.snapshot} presentIds={present} />
                 {/* Live, wired sections only. Absent ones are collected into a
                     single "Not wired" card below, so one list of them cannot
@@ -196,6 +206,35 @@ export function SupervisorDashboard({
                 <LocalModelsSection snapshot={supervisor.snapshot} />
                 <AbsentSections snapshot={supervisor.snapshot} presentIds={present} />
               </>
+            )}
+
+            {tab === 'conference' && (
+              <>
+                {/* §12: the gallery over the SAME workers fact. No fake active
+                    speaker; voice/video are deferred chips, not controls. */}
+                <ConferenceView section={supervisor.snapshot?.sections?.supervision} />
+                <AbsentSections snapshot={supervisor.snapshot} presentIds={present} />
+              </>
+            )}
+
+            {tab === 'messages' && (
+              <Card
+                title="Messages"
+                testId="messages-card"
+                actions={
+                  <span className="sv-row">
+                    <span className="sv-muted sv-mono" data-testid="message-count">
+                      {supervisor.events.length} event{supervisor.events.length === 1 ? '' : 's'}
+                    </span>
+                    <FactChip state={supervisor.connection === 'connected' ? 'LIVE' : 'OFFLINE'} />
+                  </span>
+                }
+              >
+                {/* §14: the live event stream made legible. Same `events` the
+                    hook already holds — no second fetch, no second stream,
+                    and no invented chatter to fill a quiet moment. */}
+                <MessageFeed events={supervisor.events} />
+              </Card>
             )}
 
             {tab === 'events' && (
