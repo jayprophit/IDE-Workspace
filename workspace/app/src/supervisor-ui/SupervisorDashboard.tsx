@@ -4,6 +4,7 @@ import { useSupervisor } from './api/useSupervisor';
 import { SECTION_LABEL, type SectionId } from './api/types';
 import { Announcer, EventFeed, useHealthAnnouncements, useHealthMap } from './components/events';
 import { Card, EmptyState, FactChip, Notice, formatAge } from './components/fact';
+import { MissionControl } from './components/mission-control';
 import {
   AbsentSections,
   CodexSection,
@@ -163,6 +164,11 @@ export function SupervisorDashboard({
 
             {tab === 'overview' && (
               <>
+                {/* §6/§10: the avatar-era owner overview. Mission control is
+                    the M2 shell's composition, ported in: it rolls the SAME
+                    live supervision/resources facts up into the owner tiles,
+                    above the detailed sections. One data source, no new store. */}
+                <MissionControl snapshot={supervisor.snapshot} />
                 <Overview snapshot={supervisor.snapshot} presentIds={present} />
                 {/* Live, wired sections only. Absent ones are collected into a
                     single "Not wired" card below, so one list of them cannot

@@ -909,3 +909,69 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* --- mission control (§6/§10) ---------------------------------------------
+ * The M2 shell's owner-overview composition, ported into the tested React
+ * unit. Tiles are built ONLY from the semantic fact tokens above, so every
+ * theme re-grades them with no code change. A tile's little state chip carries
+ * the SourceState, so a NOT_EXPOSED tile never reads as a healthy zero. */
+
+.sv-mission {
+  padding: var(--sv-space-5) var(--sv-space-5) var(--sv-space-4);
+}
+.sv-mission__head { margin-bottom: var(--sv-space-4); }
+.sv-mission__sub { display: block; margin-top: 2px; font-size: var(--sv-text-xs); }
+.sv-grad-text {
+  background: linear-gradient(90deg, var(--accent-text), var(--fact-unknown));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--accent-text);
+}
+.sv-mission__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sv-space-3);
+}
+.sv-tile {
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--sv-radius-lg, 12px);
+  padding: var(--sv-space-3) var(--sv-space-4);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.sv-tile__k {
+  font-size: var(--sv-text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.sv-tile__v {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 4px;
+  color: var(--text-primary);
+}
+.sv-tile__note { font-size: var(--sv-text-2xs); color: var(--text-muted); margin-top: 2px; }
+.sv-tile__state {
+  position: absolute;
+  top: var(--sv-space-3);
+  right: var(--sv-space-3);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+.sv-tile--blue .sv-tile__v { color: var(--fact-live); }
+.sv-tile--green .sv-tile__v { color: var(--fact-live-verified); }
+.sv-tile--amber .sv-tile__v { color: var(--fact-degraded); }
+.sv-tile--red .sv-tile__v { color: var(--fact-blocked); }
+.sv-tile--violet .sv-tile__v { color: var(--fact-unknown); }
+.sv-tile--muted .sv-tile__v { color: var(--text-secondary); }
+.sv-tile[data-fact-state='NOT_EXPOSED'] { border-style: dashed; }
