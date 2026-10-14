@@ -38,10 +38,12 @@ function speakingWorkers(rows: TeamMember[]): TeamMember[] {
 }
 
 export interface ConferenceViewProps {
-  section: Record<string, unknown> | undefined;
+  section?: Record<string, unknown>;
+  /** §5.A (M4 increment 1): open the full worker inspector for a tile. */
+  onSelectWorker?: (workerId: string) => void;
 }
 
-export function ConferenceView({ section }: ConferenceViewProps) {
+export function ConferenceView({ section, onSelectWorker }: ConferenceViewProps) {
   const rows = readRoster(section);
   const [project, setProject] = useState('all');
   const [status, setStatus] = useState('all');
@@ -134,7 +136,7 @@ export function ConferenceView({ section }: ConferenceViewProps) {
       ) : (
         <div className="sv-conf__grid" data-testid="conference-grid">
           {visible.map((w) => (
-            <ConferenceTile key={w.worker_id} worker={w} />
+            <ConferenceTile key={w.worker_id} worker={w} onSelect={onSelectWorker} />
           ))}
         </div>
       )}
@@ -149,7 +151,7 @@ export function ConferenceView({ section }: ConferenceViewProps) {
  * current task along the bottom. The glow treatment is a token, so it re-grades
  * with the theme instead of being the prototype's hardcoded cyan.
  */
-export function ConferenceTile({ worker }: { worker: TeamMember }) {
+export function ConferenceTile({ worker, onSelect }: { worker: TeamMember; onSelect?: (workerId: string) => void }) {
   const state = stateForStatus(worker.status);
   const task = (worker.task_description ?? '').trim();
 
@@ -159,6 +161,12 @@ export function ConferenceTile({ worker }: { worker: TeamMember }) {
       data-testid={`conf-tile-${worker.worker_id}`}
       data-state={state}
       aria-label={`${worker.worker_id} — ${worker.role ?? 'role not reported'}`}
+      role={onSelect ? 'button' : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect ? () => onSelect(worker.worker_id) : undefined}
+      onKeyDown={onSelect ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(worker.worker_id); }
+      } : undefined}
     >
       <div className="sv-conf__tile-badge">
         <span className="sv-chip" data-testid={`conf-role-${worker.worker_id}`}>

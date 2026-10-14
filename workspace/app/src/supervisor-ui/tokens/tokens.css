@@ -403,7 +403,10 @@
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  /* §16: min-height: 0 let column-flex cards collapse to ~46px and clip
+     their content (mission-control tiles, worker cards). The floor keeps
+     every content-bearing card usable; guarded by card-collapse.test.tsx. */
+  min-height: 140px;
 }
 
 .sv-card__head {
@@ -1261,3 +1264,33 @@
 .sv-tile--violet .sv-tile__v { color: var(--fact-unknown); }
 .sv-tile--muted .sv-tile__v { color: var(--text-secondary); }
 .sv-tile[data-fact-state='NOT_EXPOSED'] { border-style: dashed; }
+
+
+/* --- M4 worker inspector (§5.A) --------------------------------------------
+ * The full worker view. Tokens only — no colour literal — so all five themes
+ * re-grade it. Row labels are the muted uppercase treatment the worker card
+ * already uses, so identity reads consistently across surfaces. */
+
+.sv-inspector {
+  padding: var(--sv-space-5);
+  flex-shrink: 0;
+}
+
+.sv-inspector__label {
+  min-width: 120px;
+  font-size: var(--sv-text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* A selectable conference tile announces affordance with the cursor and the
+   focus ring, and keeps its 140px .sv-card floor (§16 regression). */
+.sv-conf__tile[role='button'] {
+  cursor: pointer;
+}
+
+.sv-conf__tile[role='button']:focus-visible {
+  outline: 2px solid var(--accent-base);
+  outline-offset: 2px;
+}

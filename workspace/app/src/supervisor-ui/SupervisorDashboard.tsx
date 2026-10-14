@@ -5,6 +5,7 @@ import { SECTION_LABEL, type SectionId } from './api/types';
 import { Announcer, EventFeed, useHealthAnnouncements, useHealthMap } from './components/events';
 import { Card, EmptyState, FactChip, Notice, formatAge } from './components/fact';
 import { MissionControl } from './components/mission-control';
+import { WorkerInspector } from './components/worker-inspector';
 import { ConferenceView } from './components/conference';
 import { MessageFeed } from './components/message-feed';
 import { GitHealthPanel, ResourceMeters } from './components/resource-tiles';
@@ -68,6 +69,7 @@ export function SupervisorDashboard({
   initialTab = 'overview',
 }: SupervisorDashboardProps) {
   const [tab, setTab] = useState<TabId>(initialTab);
+  const [inspectedWorkerId, setInspectedWorkerId] = useState<string | null>(null);
   const supervisor = useSupervisor({ baseUrl, enabled, pollMs, eventPollMs });
 
   const present = useMemo(() => presentSections(supervisor.snapshot), [supervisor.snapshot]);
@@ -179,6 +181,17 @@ export function SupervisorDashboard({
                     absent reads NOT_EXPOSED rather than 0. */}
                 <ResourceMeters section={supervisor.snapshot?.sections?.resources} />
                 <GitHealthPanel section={supervisor.snapshot?.sections?.repositories} />
+                {/* §5.A (M4 increment 1): the full worker inspector. Opened by
+                    selecting a worker anywhere in the roster/conference; reads
+                    the SAME supervision fact + the existing worker-detail
+                    route. Absent fields render NOT_EXPOSED, never placeholders. */}
+                {inspectedWorkerId && (
+                  <WorkerInspector
+                    workerId={inspectedWorkerId}
+                    supervision={supervisor.snapshot?.sections?.supervision}
+                    onClose={() => setInspectedWorkerId(null)}
+                  />
+                )}
                 <Overview snapshot={supervisor.snapshot} presentIds={present} />
                 {/* Live, wired sections only. Absent ones are collected into a
                     single "Not wired" card below, so one list of them cannot
@@ -211,8 +224,20 @@ export function SupervisorDashboard({
             {tab === 'conference' && (
               <>
                 {/* §12: the gallery over the SAME workers fact. No fake active
-                    speaker; voice/video are deferred chips, not controls. */}
-                <ConferenceView section={supervisor.snapshot?.sections?.supervision} />
+                    speaker; voice/video are deferred chips, not controls.
+                    §5.A (M4 increment 1): clicking a tile opens the full
+                    worker inspector below the gallery. */}
+                <ConferenceView
+                  section={supervisor.snapshot?.sections?.supervision}
+                  onSelectWorker={setInspectedWorkerId}
+                />
+                {inspectedWorkerId && (
+                  <WorkerInspector
+                    workerId={inspectedWorkerId}
+                    supervision={supervisor.snapshot?.sections?.supervision}
+                    onClose={() => setInspectedWorkerId(null)}
+                  />
+                )}
                 <AbsentSections snapshot={supervisor.snapshot} presentIds={present} />
               </>
             )}
