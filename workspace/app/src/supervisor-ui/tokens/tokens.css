@@ -1274,14 +1274,83 @@
 .sv-inspector {
   padding: var(--sv-space-5);
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-4);
+  min-width: 0;
+}
+
+/* The inspector lists ~30 rows. `.sv-card`'s 140px floor (the §16 regression)
+   is a floor, not a cap, but this card is a flex child of the scroll column
+   and needs to be allowed to GROW past it or the tail of the list is clipped. */
+.sv-card:has(.sv-inspector) {
+  flex: 0 0 auto;
+  height: auto;
+}
+
+.sv-inspector__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-4);
+  flex-shrink: 0;
+}
+
+.sv-inspector__id { gap: var(--sv-space-1); min-width: 0; }
+
+/* A dense two-column fact grid. `minmax(0, …)` on the value column is what
+   stops a long evidence string from widening the card and shoving the label
+   column out of alignment.
+   `align-items: start` (not `baseline`) keeps each row's chip on its own line
+   rather than stretched to the row height. */
+.sv-inspector__rows {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) minmax(0, 1fr);
+  gap: var(--sv-space-2) var(--sv-space-4);
+  align-items: start;
+}
+
+.sv-inspector__row {
+  display: contents;
+}
+
+/* A grid item defaults to `stretch`, which would drag every NOT_EXPOSED chip
+   across the full column width. `inline-flex` alone does not prevent that —
+   the chip must also be told to size to its own content inside the grid. */
+.sv-inspector__rows .sv-chip {
+  justify-self: start;
 }
 
 .sv-inspector__label {
-  min-width: 120px;
+  min-width: 110px;
   font-size: var(--sv-text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
+}
+
+.sv-inspector__value {
+  font-size: var(--sv-text-xs);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* "Observed and empty" — deliberately italic and muted so it never reads as a
+   value the backend reported. It sits between "a real value" and NOT_EXPOSED. */
+.sv-inspector__value--empty {
+  font-family: var(--sv-font);
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.sv-inspector__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-3);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding-top: var(--sv-space-2);
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* A selectable conference tile announces affordance with the cursor and the
