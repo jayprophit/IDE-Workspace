@@ -87,6 +87,20 @@ status:
     - "vitest.config.ts: environment jsdom, testTimeout 15000, include src/**/*.test.{ts,tsx}"
 
 known_issues:
+  - id: IDE-005
+    severity: high
+    summary: >-
+      The repository tracks its dependency tree in full: 4,715 files under
+      workspace/app/node_modules are committed. A dependency tree is
+      generated output, and committing it makes every install a diff and
+      every conflict in it a conflict in the project.
+    evidence: >-
+      git ls-files | grep node_modules -> 4,715 tracked files, including
+      workspace/app/node_modules/.bin/baseline-browser-mapping and its
+      .cmd and .ps1 siblings. The dashboard branch showed the same file as
+      a modified tracked path before the dashboard was dissolved.
+    status: OPEN
+    todo_ref: TODO-IED-001
   - id: IDE-001
     severity: medium
     summary: >-
@@ -141,5 +155,8 @@ notes:
     requirement. Honest NOT_IMPLEMENTED and NOT_EXPOSED states are required
     in place of fake success.
   - >-
-    IDE-Workspace-dashboard is a sibling variant of this project on branch
-    unit/supervisor-dashboard-ui. Changes here may need porting.
+    The supervisor dashboard was a branch of this repository rather than a
+    separate project, and it was dissolved into this project on
+    2026-10-20. The branch unit/supervisor-dashboard-ui remains in the
+    repository and on the remote, so its history is intact; the runtime
+    binding it carried is already here in a more developed form.
