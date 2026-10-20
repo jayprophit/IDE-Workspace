@@ -1,0 +1,145 @@
+# =============================================================================
+# BUILD MANIFEST — IDE-Workspace
+# =============================================================================
+# Authoritative record of how this project is built, tested and verified, and
+# of what is still broken. Read by Aetherius-OS's build manifest registry
+# (docs/BUILD-MANIFEST-REGISTRY.yaml) and validated by
+# src/programme/buildManifest.ts.
+# =============================================================================
+schema_version: "1.0.0"
+
+project:
+  id: ide-workspace
+  name: IDE-Workspace
+  kind: application
+  domain: ide
+  description: >-
+    The Aetherius IDE supervisor surface and its Python bridge host. A Vite
+    front end under workspace/app, with a Python integration layer that
+    exercises the bridge under workspace/integration.
+  repository: true
+  branch: master
+  languages: [typescript, python, shell]
+
+toolchain:
+  build_system: npm/vite/pytest
+  package_manager: npm
+  requirements:
+    - name: node
+      version: ">=18"
+      required: true
+      purpose: Vite build, Vitest test runner
+    - name: npm
+      version: ">=9"
+      required: true
+      purpose: dependency install and script running
+    - name: python
+      version: ">=3.11"
+      required: true
+      purpose: bridge host, integration tests and the task runner
+    - name: g++
+      version: ">=11"
+      required: false
+      purpose: the C++ task path exercised by the proof scripts
+
+commands:
+  - name: install
+    command: npm ci
+    working_directory: workspace/app
+    timeout_minutes: 15
+  - name: build
+    command: npm run build
+    working_directory: workspace/app
+    timeout_minutes: 15
+  - name: test
+    command: npm test
+    working_directory: workspace/app
+    timeout_minutes: 15
+  - name: test-bridge
+    command: python -m pytest integration/tests -q
+    working_directory: workspace
+    timeout_minutes: 15
+  - name: test-all
+    command: npm run test:all
+    working_directory: workspace/app
+    timeout_minutes: 30
+    requires: [test, test-bridge]
+  - name: dev
+    command: npm run dev
+    working_directory: workspace/app
+    timeout_minutes: 0
+
+dependencies:
+  projects: [genesis, agent-bridge, aetherius-os]
+  external: []
+
+status:
+  state: VERIFIED
+  last_verified: "2026-10-20"
+  summary: >-
+    The front end typechecks, builds and passes its whole test suite: 466
+    tests across 28 files, 42 seconds. The Python bridge layer under
+    workspace/integration was not exercised in this pass.
+  evidence:
+    - "npm run build (workspace/app) -> tsc --noEmit clean; vite v6.4.3 built 78 modules in 3.77s"
+    - "npm run build produced: index.html, supervisor-ui.html, genesis-ui.html, supervisor-m2.html, client-D6S-fLKS.js (223.82 kB)"
+    - "npm test (workspace/app) -> 28 files passed, 466 tests passed, 0 failed, 42.40s"
+    - "vitest.config.ts: environment jsdom, testTimeout 15000, include src/**/*.test.{ts,tsx}"
+
+known_issues:
+  - id: IDE-001
+    severity: medium
+    summary: >-
+      The Python bridge integration tests were not exercised in this
+      verification pass, so the front end and the bridge are confirmed
+      separately rather than together.
+    evidence: >-
+      package.json defines test:bridge as "cd .. && python -m pytest
+      integration/tests -q"; it was not run for this manifest.
+    status: OPEN
+    todo_ref: TODO-IDE-001
+  - id: IDE-004
+    severity: medium
+    summary: >-
+      The test suite is timing-sensitive under CPU contention on this
+      four-core host, so it is green when run alone and intermittently red
+      when run alongside other suites.
+    evidence: >-
+      2026-10-20: run alone, 28 files and 466 tests pass in 35.06s. Run
+      while three other suites were running on the same host, one test
+      failed and 465 passed. The same pattern appears in the Aetherius-OS
+      suite, so it is a property of the host rather than of this project.
+    status: OPEN
+    todo_ref: TODO-IDE-004
+  - id: IDE-002
+    severity: medium
+    summary: >-
+      Around thirty loose proof and fix scripts sit at the repository root
+      and in workspace/, many of them one-off iteration artefacts.
+    evidence: >-
+      Root: fix_report.py, fix_terminology.py, rewrite_report.py,
+      run_cpp_proof.py, run_flaky_test.py, run_flaky_test_v081.py,
+      run_hello_task.py, run_simple_cpp.py, update_report.py.
+      workspace/: step2b_workspace.py through step9_fixed.py.
+    status: OPEN
+    todo_ref: TODO-IDE-002
+  - id: IDE-003
+    severity: low
+    summary: >-
+      The repository root contains committed test artefacts (test.txt,
+      test_output.txt, field_output.json, audit_report.txt) that are output
+      rather than source.
+    evidence: >-
+      Root listing includes test.txt, test_output.txt, field_output.json
+      and audit_report.txt.
+    status: OPEN
+    todo_ref: TODO-IDE-003
+
+notes:
+  - >-
+    The supervisor UI carries an explicit LIVE-versus-DESIGN separation
+    requirement. Honest NOT_IMPLEMENTED and NOT_EXPOSED states are required
+    in place of fake success.
+  - >-
+    IDE-Workspace-dashboard is a sibling variant of this project on branch
+    unit/supervisor-dashboard-ui. Changes here may need porting.
