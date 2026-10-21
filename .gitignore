@@ -49,6 +49,13 @@ workspace/integration/.env.local.example
 .bridge/
 workspace/.bridge/
 
+# The Genesis kernel's durable state, and the scratch directory a task
+# proof writes into. Both are runtime state and neither is a source
+# artefact: the kernel's state belongs to the machine, and the scratch
+# holds whatever the last proof happened to write. Same rule as .bridge/.
+workspace/.genesis-kernel/
+workspace/proof-scratch/
+
 # IDE-side Agent Bridge worker state (default IDE_WORKER_DIR). The integration
 # launcher written by BridgeService.start_injected() lands here, and a hosted
 # runtime writes its own worker artifacts beside it. Runtime/generated state is

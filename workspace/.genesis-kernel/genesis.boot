@@ -1,7 +1,0 @@
-version=v3
-organism=genesis.entity.v1.organism.f50890581d8d1250baa4845309b49cdd4a76acfa1d515ea7cb29821113b08634
-state=ready
-next_sequence=4
-registry_digest=8922a345ff5cfcf7b0bd13b16f111853c94bb3dbbc277c4a40f2c939e2229590
-memory_digest=aa02e690515c4fcbf59402a3806259d89ab05713ca2f49b1491c5e33c0ce2595
-model_route=hhao/qwen2.5-coder-tools:3b
