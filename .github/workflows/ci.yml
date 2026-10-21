@@ -34,7 +34,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # The version the project develops against. jsdom 30 and the
+          # undici it uses need a newer Node than the runner's default,
+          # and the suite failed on a version mismatch rather than on
+          # anything in the code.
+          node-version: '24'
           cache: npm
           cache-dependency-path: workspace/app/package-lock.json
 
