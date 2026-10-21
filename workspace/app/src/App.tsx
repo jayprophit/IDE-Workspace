@@ -360,9 +360,13 @@ export default function App() {
     approval: (live && live.approvals_pending.length > 0 ? 'pending' : 'none') as 'none' | 'pending',
     verification: 'idle' as const,
   };
+  /* The reason the backend is unreachable belongs on screen. Without it a
+   * rate-limited or mis-addressed Bridge reads the same as a Bridge that
+   * is not running, and the two have opposite fixes. The error text is the
+   * transport's own, not a paraphrase. */
   const connection = bridge.connected
     ? `backend: connected (${bridge.health})`
-    : 'backend: disconnected';
+    : `backend: disconnected${bridge.error ? ` (${bridge.error})` : ''}`;
   const queueDepth = live?.queue_depth ?? 0;
   const workerCount = live?.workers?.length ?? 0;
   const approvalsCount = live?.approvals_pending.length ?? 0;
@@ -583,7 +587,7 @@ export default function App() {
       <header className="topbar" data-testid="top-header">
         <div className="brand">
           <span className="brand-mark" aria-hidden>◈</span>
-          <span>IDE_NAME_TBD</span>
+          <span>Aetherius IDE</span>
           <span className="pill" data-testid="project-pill">project: workspace/app</span>
         </div>
 
