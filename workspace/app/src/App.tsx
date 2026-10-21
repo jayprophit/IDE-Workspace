@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ThemeId, WorkspaceMode } from './types';
-import { fetchBridgeStatus, type BridgeStatus, bridgeBase, createTerminalSession, execTerminal, fetchTerminalSession, type TerminalEntryView, listWorkspace, readWorkspaceFile, writeWorkspaceFile, searchWorkspace, gitWorkspace, createWorkspaceEntry, deleteWorkspaceEntry, renameWorkspaceEntry, type WorkspaceEntry } from './bridge';
+import { fetchBridgeStatus, type BridgeStatus, type BridgeRuntime, bridgeBase, createTerminalSession, execTerminal, fetchTerminalSession, type TerminalEntryView, listWorkspace, readWorkspaceFile, writeWorkspaceFile, searchWorkspace, gitWorkspace, createWorkspaceEntry, deleteWorkspaceEntry, renameWorkspaceEntry, type WorkspaceEntry } from './bridge';
 import { fetchInspectionEvents, fetchInspectionSessions, type InspectionEvent, type InspectionSession } from './inspection';
 import {
   serializeUiState,
@@ -62,12 +62,43 @@ function browserUiStorage(): UiStorage | null {
   }
 }
 
-/** Shared canonical refs: one Genesis, one task source for BOTH depths. */
-const SHARED_GENESIS_REF = 'genesis-prime · local preview (unverified)';
+/**
+ * What the interface says about Genesis.
+ *
+ * This used to be a fixed string, "genesis-prime · local preview
+ * (unverified)", which named something that was not there. Genesis is
+ * the organism: a separate kernel from the Bridge, with its own
+ * identity, memory and runtime state. When the Bridge has it attached,
+ * the interface shows that organism's own identity and version. When it
+ * does not, the interface says the organism is not attached, which is
+ * the truth and is more useful than a name.
+ */
+function genesisRef(runtime: BridgeRuntime | null): string {
+  const organism = runtime?.genesis;
+  if (!organism || !organism.attached) return 'not attached';
+  const identity = organism.identity || '(no identity)';
+  const version = organism.version ? ` ${organism.version}` : '';
+  return `${identity}${version}`;
+}
 
 const BRIDGE_POLL_MS = 5000;
 const BRIDGE_INITIAL_RETRY_MS = 1000;
 const BRIDGE_MAX_RETRIES = 5;
+
+/**
+ * The poll interval, in milliseconds.
+ *
+ * The test harness raises it, in the same way the Bridge's base address
+ * can be pointed elsewhere, so that the background poll cannot land
+ * inside a measurement window. Every assertion in the suite is that a
+ * user action did not add a request, and a poll arriving mid-measurement
+ * would make that a question of timing rather than of behaviour.
+ */
+function bridgePollMs(): number {
+  const override = (window as unknown as Record<string, unknown>)
+    .__BRIDGE_POLL_MS__;
+  return typeof override === 'number' && override > 0 ? override : BRIDGE_POLL_MS;
+}
 
 function useBridgeStatus(): BridgeStatus {
   const [status, setStatus] = useState<BridgeStatus>({
@@ -84,23 +115,29 @@ function useBridgeStatus(): BridgeStatus {
   useEffect(() => {
     let cancelled = false;
     let retryCount = 0;
+    /* The retry timer is held so it can be cleared. A retry that fires
+     * after the view has gone is a request the Bridge receives for an
+     * interface that is no longer there, and it is exactly the kind of
+     * background traffic that makes a rate limit bite for no reason. */
+    let retryTimer: number | null = null;
     const poll = async () => {
       const next = await fetchBridgeStatus();
-      if (!cancelled) {
-        setStatus(next);
-        if (next.connected) {
-          retryCount = 0;
-        } else if (retryCount < BRIDGE_MAX_RETRIES) {
-          retryCount++;
-          setTimeout(() => void poll(), BRIDGE_INITIAL_RETRY_MS * retryCount);
-        }
+      if (cancelled) return;
+      setStatus(next);
+      if (next.connected) {
+        retryCount = 0;
+      } else if (retryCount < BRIDGE_MAX_RETRIES) {
+        retryCount++;
+        retryTimer = window.setTimeout(
+          () => void poll(), BRIDGE_INITIAL_RETRY_MS * retryCount);
       }
     };
     void poll();
-    const timer = window.setInterval(() => void poll(), BRIDGE_POLL_MS);
+    const timer = window.setInterval(() => void poll(), bridgePollMs());
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
     };
   }, []);
   return status;
@@ -971,7 +1008,7 @@ export default function App() {
             style={{ display: sidebarTab === 'agent' && openPanels.includes('agent') && !detached.includes('agent') ? 'flex' : 'none', flexDirection: 'column', gap: 10, width: '100%' }}
           >
             <div className="card" style={{ padding: 10 }}>
-              <div className="status-row"><span className="k">genesis</span><span className="v" data-testid="genesis-ref">{SHARED_GENESIS_REF}</span></div>
+              <div className="status-row"><span className="k">genesis</span><span className="v" data-testid="genesis-ref">{genesisRef(live)}</span></div>
               <div className="status-row"><span className="k">active model</span><span className="v" data-testid="status-model">{status.model}</span></div>
               <div className="status-row"><span className="k">active agent</span><span className="v" data-testid="status-agent">{status.agent}</span></div>
               <div className="status-row"><span className="k">task</span><span className="v" data-testid="status-task">{status.task}</span></div>

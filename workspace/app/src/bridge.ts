@@ -20,8 +20,27 @@ export interface BridgeAvatar {
   progress_pct: number;
 }
 
-export interface BridgeRuntimeModel {
-  model?: string;
+/**
+ * The Genesis organism, as the Bridge reports it.
+ *
+ * Genesis is the organism: identity, memory and the runtime's own state.
+ * It is a separate kernel from the Bridge, and the Bridge can run with
+ * or without it. When it is not attached the fields say so, so the
+ * interface can say so too rather than showing a name that belongs to
+ * nothing.
+ */
+export interface BridgeGenesis {
+  attached: boolean;
+  healthy: boolean;
+  identity: string;
+  version: string;
+  state: string;
+  calls: number;
+  failures: number;
+  error: string;
+}
+
+export interface BridgeRuntimeModel {  model?: string;
   name?: string;
   status?: string;
   family?: string;
@@ -59,6 +78,8 @@ export interface BridgeRuntime {
   resources: Record<string, unknown>;
   health: string | BridgeHealthMetrics;
   errors: string[];
+  /** The Genesis organism, when the kernel is attached to the Bridge. */
+  genesis?: BridgeGenesis;
 }
 
 export interface BridgeModel {

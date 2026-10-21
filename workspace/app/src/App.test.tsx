@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { fetchBridgeStatus, createTerminalSession } from './bridge';
 
@@ -37,10 +37,40 @@ vi.mock('./inspection', () => ({
 const mockedStatus = vi.mocked(fetchBridgeStatus);
 const mockedTerminal = vi.mocked(createTerminalSession);
 
+/* The default the rest of the file runs against: connected with an
+ * empty runtime, which exercises the live-data path shape while keeping
+ * every value honest-empty. The Genesis tests below replace it, and put
+ * it back afterwards, so one test cannot quietly change another. */
+const defaultStatus = {
+  connected: true,
+  baseUrl: 'http://127.0.0.1:8471',
+  health: 'UNKNOWN',
+  runtime: null,
+  models: [],
+  error: '',
+  agentBridgeVersion: '',
+  ideVersion: '',
+  versionCompatible: false,
+};
+
 beforeEach(() => {
   window.localStorage.clear();
   mockedStatus.mockClear();
+  mockedStatus.mockResolvedValue(defaultStatus as never);
   mockedTerminal.mockClear();
+  /* The background poll is pushed out of the way for these tests.
+   *
+   * Every assertion here is that a user action did not add a request.
+   * A poll arriving inside one of those windows would make the
+   * measurement a question of timing rather than of behaviour, and a
+   * test that is sometimes right for the wrong reason is worse than no
+   * test. The mount-time request still happens; only the repeating one
+   * is moved out of reach. */
+  (window as unknown as Record<string, unknown>).__BRIDGE_POLL_MS__ = 600000;
+});
+
+afterEach(() => {
+  delete (window as unknown as Record<string, unknown>).__BRIDGE_POLL_MS__;
 });
 
 async function renderOffline() {
@@ -51,8 +81,118 @@ async function renderOffline() {
   return { user, view };
 }
 
-describe('chat/work parity', () => {
-  it('shares task pill and genesis ref across depths', async () => {
+describe('the Genesis organism', () => {
+  /* The status row used to read a fixed string, "genesis-prime · local
+   * preview (unverified)", which named something that was not there.
+   * Genesis is the organism: a separate kernel from the Bridge, with
+   * its own identity. The row now shows that organism when the Bridge
+   * has it attached, and says it is not attached when it does not. */
+  const runtimeWith = (genesis: unknown) => ({
+    connected: true,
+    baseUrl: 'http://127.0.0.1:8471',
+    health: 'HEALTHY',
+    runtime: {
+      timestamp: 1,
+      tasks: [],
+      queue_depth: 0,
+      queued_ids: [],
+      active_model: '',
+      models: [],
+      workers: [],
+      approvals_pending: [],
+      progress_pct: 0,
+      results: [],
+      evidence_refs: [],
+      resources: {},
+      health: 'HEALTHY',
+      errors: [],
+      genesis,
+    },
+    models: [],
+    error: '',
+    agentBridgeVersion: '',
+    ideVersion: '',
+    versionCompatible: false,
+  });
+
+  it('names the organism when the kernel is attached', async () => {
+    mockedStatus.mockResolvedValue(runtimeWith({
+      attached: true,
+      healthy: true,
+      identity: 'genesis.entity.v1.organism.abc123',
+      version: 'v4',
+      state: 'ready',
+      calls: 12,
+      failures: 0,
+      error: '',
+    }) as never);
+    await renderOffline();
+    const row = screen.getByTestId('genesis-ref').textContent;
+    expect(row).toContain('genesis.entity.v1.organism.abc123');
+    expect(row).toContain('v4');
+  });
+
+  it('says the organism is not attached when it is not', async () => {
+    mockedStatus.mockResolvedValue(runtimeWith({
+      attached: false,
+      healthy: false,
+      identity: '',
+      version: '',
+      state: '',
+      calls: 0,
+      failures: 0,
+      error: 'the Genesis kernel is not attached to this Bridge',
+    }) as never);
+    await renderOffline();
+    expect(screen.getByTestId('genesis-ref').textContent).toBe('not attached');
+  });
+
+  it('names nothing when the Bridge reports no runtime at all', async () => {
+    mockedStatus.mockResolvedValue({
+      connected: false,
+      baseUrl: 'http://127.0.0.1:8471',
+      health: 'UNKNOWN',
+      runtime: null,
+      models: [],
+      error: 'HTTP 429',
+      agentBridgeVersion: '',
+      ideVersion: '',
+      versionCompatible: false,
+    } as never);
+    await renderOffline();
+    expect(screen.getByTestId('genesis-ref').textContent).toBe('not attached');
+  });
+
+  it('stops retrying once the view has gone', async () => {
+    /* A retry that fires after the view is gone is a request the
+     * Bridge receives for an interface that is no longer there, and it
+     * is exactly the kind of background traffic that makes a rate limit
+     * bite for no reason. The retry timer has to be cleared on
+     * unmount, not merely ignored. */
+    mockedStatus.mockResolvedValue({
+      connected: false,
+      baseUrl: 'http://127.0.0.1:8471',
+      health: 'UNKNOWN',
+      runtime: null,
+      models: [],
+      error: 'HTTP 429',
+      agentBridgeVersion: '',
+      ideVersion: '',
+      versionCompatible: false,
+    } as never);
+    const view = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('backend-state').textContent).toContain('backend:'),
+    );
+    const callsBefore = mockedStatus.mock.calls.length;
+    view.unmount();
+    /* The first retry is scheduled a second out. */
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+    expect(mockedStatus.mock.calls.length).toBe(callsBefore);
+  });
+});
+
+describe('chat/work parity', () => {  it('shares task pill and genesis ref across depths', async () => {
     const { user } = await renderOffline();
     const taskChat = screen.getByTestId('status-task').textContent;
     const genesisChat = screen.getByTestId('genesis-ref').textContent;

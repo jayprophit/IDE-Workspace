@@ -1,0 +1,73 @@
+name: Aetherius IDE
+
+# The IDE's own gate, run independently.
+#
+# The repository had no product workflow. The only runs on the account
+# were Dependabot's dependency updates, which say nothing about whether
+# the product works. The build manifest's own note that the Python
+# Bridge integration was "not exercised" is closed by the second job
+# here.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aetherius-ide-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck, test and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workspace/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: workspace/app/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: type check and build
+        run: npm run build
+
+      - name: test
+        run: npm test
+
+  bridge-integration:
+    name: the Bridge integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: install
+        run: python -m pip install --upgrade pip pytest
+
+      # These drive the real Agent Bridge on a loopback port, so they
+      # need the Bridge's own dependencies rather than the IDE's.
+      - name: the Bridge's dependencies
+        run: |
+          python -m pip install -r ../Agent-Bridge/requirements.txt || \
+          python -m pip install fastapi uvicorn httpx pytest-asyncio || \
+          echo "the Bridge requirements were not reachable; the tests will report what is missing"
+
+      - name: the integration tests
+        working-directory: workspace
+        run: python -m pytest integration/tests -q
