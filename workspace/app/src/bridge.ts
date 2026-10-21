@@ -122,22 +122,40 @@ export async function fetchBridgeStatus(
     versionCompatible: false,
   };
   try {
-    const health = (await getJson(`${baseUrl}/health`, timeoutMs)) as {
-      status?: string;
-    };
-    base.health = typeof health?.status === 'string' ? health.status : 'UNKNOWN';
+    /* One request carries everything the panel needs. The runtime route
+     * reports the health and the model inventory, so asking for them
+     * separately was three requests every poll for one answer, and the
+     * Bridge's rate limit is shared by everything on the machine. A
+     * Bridge that does not carry the models in its runtime snapshot is
+     * still supported: the second request is made only when the first
+     * one did not supply them. */
     const runtime = (await getJson(
       `${baseUrl}/v1/runtime`,
       timeoutMs,
     )) as BridgeRuntime;
     base.runtime = runtime;
-    try {
-      const inv = (await getJson(`${baseUrl}/v1/models`, timeoutMs)) as {
-        models?: BridgeModel[];
+
+    const runtimeHealth = runtime?.health;
+    if (typeof runtimeHealth === 'string' && runtimeHealth) {
+      base.health = runtimeHealth;
+    } else {
+      const health = (await getJson(`${baseUrl}/health`, timeoutMs)) as {
+        status?: string;
       };
-      if (Array.isArray(inv?.models)) base.models = inv.models;
-    } catch {
-      base.models = [];
+      base.health = typeof health?.status === 'string' ? health.status : 'UNKNOWN';
+    }
+
+    if (Array.isArray(runtime?.models) && runtime.models.length > 0) {
+      base.models = runtime.models as BridgeModel[];
+    } else {
+      try {
+        const inv = (await getJson(`${baseUrl}/v1/models`, timeoutMs)) as {
+          models?: BridgeModel[];
+        };
+        if (Array.isArray(inv?.models)) base.models = inv.models;
+      } catch {
+        base.models = [];
+      }
     }
     base.connected = true;
   } catch (e) {
