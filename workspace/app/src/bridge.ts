@@ -146,7 +146,13 @@ export async function fetchBridgeStatus(
     }
 
     if (Array.isArray(runtime?.models) && runtime.models.length > 0) {
-      base.models = runtime.models as BridgeModel[];
+      /* Only entries that actually name a model are carried across. A
+       * nameless entry in the inventory would render as a blank row in
+       * the ModelCenter, which reads as a model the machine has when it
+       * does not. */
+      base.models = runtime.models.filter(
+        (m): m is BridgeModel => typeof m?.name === 'string' && m.name !== '',
+      );
     } else {
       try {
         const inv = (await getJson(`${baseUrl}/v1/models`, timeoutMs)) as {

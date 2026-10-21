@@ -132,4 +132,26 @@ describe('fetchBridgeStatus', () => {
      * different fixes, so the reason has to survive to the interface. */
     expect(status.error).toContain('429');
   });
+
+  it('does not carry a model entry that has no name', async () => {
+    stubFetch((url) => {
+      if (url.endsWith('/v1/runtime')) {
+        return {
+          status: 200,
+          body: {
+            ...RUNTIME_WITH_MODELS,
+            models: [{ name: 'granite3.3:2b' }, { parameter_size: '3B' }, {}],
+          },
+        };
+      }
+      return { status: 404, body: { error: 'unknown route' } };
+    });
+
+    const status = await fetchBridgeStatus('http://127.0.0.1:8471');
+
+    /* A nameless entry would render as a blank row in the ModelCenter,
+     * which reads as a model the machine has when it does not. */
+    expect(status.models).toHaveLength(1);
+    expect(status.models[0].name).toBe('granite3.3:2b');
+  });
 });
