@@ -10,6 +10,7 @@ import { DEFAULT_MAIN_AVATAR_ID, DEFAULT_TEAM_MODE, PRESET_MAP, SPECIALIST_PRESE
 import { PLACEHOLDER_RENDERER_ID } from './avatar/renderers';
 import { BRIDGE_DEFAULT_BASE } from '../bridge';
 import { useGenesisRuntime } from './runtime/useGenesisRuntime';
+import { useGenesisChat } from './runtime/useGenesisChat';
 import type { GenesisClient, RuntimeBinding, RuntimeConnection, RuntimeSnapshot, RuntimeSource } from './runtime/runtimeTypes';
 import './tokens/tokens.css';
 import './tokens/components.css';
@@ -146,17 +147,27 @@ export function GenesisShell({
   const liveOverride = useMemo(() => {
     if (typeof window === 'undefined') return null;
     const flag = (window as unknown as Record<string, unknown>).__GENESIS_RUNTIME_SOURCE__;
-    return flag === 'agent_bridge' ? 'agent_bridge' : null;
+    if (flag === 'agent_bridge') return 'agent_bridge';
+    if (flag === 'genesis') return 'genesis';
+    return null;
+  }, []);
+  const baseOverride = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const v = (window as unknown as Record<string, unknown>).__GENESIS_RUNTIME_BASE_URL__;
+    return typeof v === 'string' ? v : null;
   }, []);
   const effectiveSource = liveOverride ?? runtimeSource;
+  const effectiveBase = baseOverride ?? bridgeBaseUrl;
 
-  const runtime = useGenesisRuntime({
-    source: effectiveSource,
-    baseUrl: bridgeBaseUrl,
+  const runtimeAB = useGenesisRuntime({
+    source: effectiveSource === 'genesis' ? 'fixture' : effectiveSource,
+    baseUrl: effectiveBase,
     workspace,
     interactive: runtimeInteractive,
     client: runtimeClient,
   });
+  const runtimeGenesis = useGenesisChat(effectiveBase);
+  const runtime = effectiveSource === 'genesis' ? runtimeGenesis : runtimeAB;
 
   const snap = runtime.snapshot;
 
@@ -235,7 +246,7 @@ export function GenesisShell({
       setLocalMessages((prev) => [...prev, echo]);
 
       try {
-        if (runtimeSource === 'fixture') {
+        if (runtimeSource === 'fixture' && effectiveSource !== 'genesis') {
           /* Fixture mode has no backend and says so. The echo above stands on
            * its own; nothing pretends a run happened. */
           return;
@@ -526,6 +537,14 @@ export function runtimeDot(connection: RuntimeConnection): 'success' | 'warning'
 }
 
 export function runtimeLabel(snap: RuntimeSnapshot): string {
+  if (snap.source === 'genesis') {
+    switch (snap.connection) {
+      case 'connected': return 'genesis: connected';
+      case 'connecting': return 'genesis: connecting';
+      case 'error': return snap.error ? `genesis: error - ${snap.error}` : 'genesis: error';
+      case 'disconnected': default: return snap.error ? `genesis: disconnected - ${snap.error}` : 'genesis: disconnected';
+    }
+  }
   if (snap.source === 'fixture') return 'fixture (not connected)';
   switch (snap.connection) {
     case 'connected':

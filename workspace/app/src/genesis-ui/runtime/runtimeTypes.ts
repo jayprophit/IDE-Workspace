@@ -35,7 +35,7 @@ import {
  *     another state anywhere below.
  */
 
-export type RuntimeSource = 'fixture' | 'agent_bridge';
+export type RuntimeSource = 'fixture' | 'agent_bridge' | 'genesis';
 export type RuntimeConnection = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 export interface RuntimeApproval {

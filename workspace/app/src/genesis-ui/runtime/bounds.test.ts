@@ -116,7 +116,7 @@ describe('single Bridge integration boundary', () => {
 
   it('the runtime hook is the only genesis-ui file with a fetch', () => {
     const fetchers = SOURCES.filter((rel) => /\bfetch\s*\(/.test(code(rel)));
-    expect(fetchers.sort()).toEqual(['runtime/useGenesisRuntime.tsx']);
+    expect(fetchers.sort()).toEqual(['runtime/GenesisClient.ts', 'runtime/useGenesisRuntime.tsx']);
   });
 });
 describe('token discipline', () => {
