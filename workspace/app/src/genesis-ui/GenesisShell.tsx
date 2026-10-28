@@ -166,7 +166,7 @@ export function GenesisShell({
     interactive: runtimeInteractive,
     client: runtimeClient,
   });
-  const runtimeGenesis = useGenesisChat(effectiveBase);
+  const runtimeGenesis = useGenesisChat(effectiveBase, effectiveSource === 'genesis');
   const runtime = effectiveSource === 'genesis' ? runtimeGenesis : runtimeAB;
 
   const snap = runtime.snapshot;

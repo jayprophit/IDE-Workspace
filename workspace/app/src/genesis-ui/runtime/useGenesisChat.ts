@@ -11,7 +11,7 @@ import {
  * Minimal Genesis chat hook. Returns a RuntimeBinding so GenesisShell can
  * consume it identically to useGenesisRuntime. Reuses GenesisClient.
  */
-export function useGenesisChat(baseUrl: string): RuntimeBinding {
+export function useGenesisChat(baseUrl: string, active: boolean = true): RuntimeBinding {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connection, setConnection] = useState<RuntimeSnapshot['connection']>('disconnected');
   const [error, setError] = useState('');
@@ -79,10 +79,14 @@ export function useGenesisChat(baseUrl: string): RuntimeBinding {
     outcome: null,
   };
 
-  // Auto-connect on mount
+  // Auto-connect on mount, but ONLY when this binding is the active runtime.
+  // GenesisShell always instantiates the genesis hook (so the hook identity is
+  // stable across mode switches); connecting while the shell is on fixture or
+  // Agent-Bridge mode would fire an unwanted background request to a backend
+  // the user has not selected. See Phase B lifecycle finding.
   useEffect(() => {
-    connect();
-  }, [connect]);
+    if (active) connect();
+  }, [active, connect]);
 
   return { snapshot, connect, disconnect, submit, decide, busy };
 }
