@@ -79,4 +79,49 @@ describe('useGenesisChat lifecycle', () => {
     expect(result.current.snapshot.error).toBe('boom');
     expect(result.current.snapshot.messages).toEqual([]);
   });
+
+  it('rejects a second submit while the first is in flight (double-submit guard)', async () => {
+    let resolveFirst!: () => void;
+    agent.mockImplementationOnce(async (_task: string, _opts: Record<string, unknown>) => {
+      await new Promise<void>((resolve) => {
+        resolveFirst = resolve;
+      });
+      return { answer: '105' };
+    });
+    const { result } = renderHook(() => useGenesisChat(BASE, true) as RuntimeBinding);
+    await act(async () => {
+      const first = result.current.submit('Calculate 47 + 58 using Agent Bridge.');
+      /* while the first submit is pending, a second submit must NOT contact the runtime */
+      await result.current.submit('Calculate 100 + 200 using Agent Bridge.');
+      expect(agent).toHaveBeenCalledTimes(1);
+      resolveFirst();
+      await first;
+    });
+    expect(result.current.busy).toBe(false);
+  });
+
+  it('clears the transcript on disconnect (no stale replies on reconnect)', async () => {
+    const { result } = renderHook(() => useGenesisChat(BASE, true) as RuntimeBinding);
+    await act(async () => {
+      await result.current.submit('Calculate 47 + 58 using Agent Bridge.');
+    });
+    expect(result.current.snapshot.messages.length).toBe(1);
+    act(() => {
+      result.current.disconnect();
+    });
+    expect(result.current.snapshot.messages).toEqual([]);
+  });
+
+  it('clears the transcript when switching away from the genesis runtime', async () => {
+    const { result, rerender } = renderHook(
+      ({ active }) => useGenesisChat(BASE, active),
+      { initialProps: { active: true } },
+    );
+    await act(async () => {
+      await result.current.submit('Calculate 47 + 58 using Agent Bridge.');
+    });
+    expect(result.current.snapshot.messages.length).toBe(1);
+    rerender({ active: false });
+    expect(result.current.snapshot.messages).toEqual([]);
+  });
 });

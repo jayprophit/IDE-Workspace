@@ -264,6 +264,17 @@ describe('approval gating', () => {
       await result.current.decide('a1', 'approve-once');
     });
 
+    /* Stop the background poll before asserting: the 1500ms poll loop can fire
+     * applySession between decide() setting the error and this assertion,
+     * clobbering it (a clean poll resets snapshot.error to ''). This only
+     * surfaced under full-suite load where the tick interval elapsed; in
+     * isolation the test ran faster than 1500ms. Stopping the poll does not
+     * weaken the assertion — disconnect preserves the pending error (L193)
+     * and the refused-decision value still must match exactly. */
+    await act(async () => {
+      result.current.disconnect();
+    });
+
     expect(result.current.snapshot.error).toBe('approval expired');
   });
 });

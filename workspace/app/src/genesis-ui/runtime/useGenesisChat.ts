@@ -17,6 +17,8 @@ export function useGenesisChat(baseUrl: string, active: boolean = true): Runtime
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const clientRef = useRef(new GenesisHttpClient(baseUrl));
+  const busyRef = useRef(false);
+  const msgSeqRef = useRef(0);
 
   useEffect(() => {
     clientRef.current = new GenesisHttpClient(baseUrl);
@@ -36,17 +38,21 @@ export function useGenesisChat(baseUrl: string, active: boolean = true): Runtime
 
   const disconnect = useCallback(() => {
     setConnection('disconnected');
+    setMessages([]);
+    setError('');
   }, []);
 
   const submit = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (busyRef.current) return; /* reject re-entrant / double submit */
+    busyRef.current = true;
     setBusy(true);
     setError('');
     try {
       const res = await clientRef.current.agent(trimmed, { max_steps: 6 });
       const reply: ChatMessage = {
-        id: `genesis-${Date.now()}`,
+        id: `genesis-${Date.now()}-${msgSeqRef.current++}`,
         author: 'agent',
         authorName: 'Genesis',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -56,6 +62,7 @@ export function useGenesisChat(baseUrl: string, active: boolean = true): Runtime
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, []);
@@ -79,14 +86,17 @@ export function useGenesisChat(baseUrl: string, active: boolean = true): Runtime
     outcome: null,
   };
 
-  // Auto-connect on mount, but ONLY when this binding is the active runtime.
-  // GenesisShell always instantiates the genesis hook (so the hook identity is
-  // stable across mode switches); connecting while the shell is on fixture or
-  // Agent-Bridge mode would fire an unwanted background request to a backend
-  // the user has not selected. See Phase B lifecycle finding.
+  /* Auto-connect (and reset stale state) ONLY when this binding is the active
+   * runtime. GenesisShell always instantiates the genesis hook (so the hook
+   * identity is stable across mode switches); connecting while the shell is on
+   * fixture or Agent-Bridge mode would fire an unwanted background request to a
+   * backend the user has not selected. Switching AWAY from genesis falls through
+   * to disconnect(), which clears the transcript so a later reconnection does not
+   * surface the previous runtime's stale replies. */
   useEffect(() => {
     if (active) connect();
-  }, [active, connect]);
+    else disconnect();
+  }, [active, connect, disconnect]);
 
   return { snapshot, connect, disconnect, submit, decide, busy };
 }
